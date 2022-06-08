@@ -26,7 +26,7 @@ def importIndexNiveauBruit(bdd='ech24'):
     return indexMaxBruit
 
 
-def transfertFichierMesure2Bdd(bdd, listAPasser, dossierSrc):
+def transfertFichierMesure2Bdd(dossierSrc, listAPasser=None , bdd='ech24'):
     """
     fonction de transfert des csv de mesure vers la Bdd
     in : 
@@ -37,7 +37,7 @@ def transfertFichierMesure2Bdd(bdd, listAPasser, dossierSrc):
     with ct.ConnexionBdd(bdd) as c:
         for r, d, files in os.walk(dossierSrc):
             for f in files:
-                if f in listAPasser:
+                if listAPasser and f in listAPasser:
                     continue
                 if f .endswith('.csv'):
                     cheminFichier = os.path.join(r, f)
