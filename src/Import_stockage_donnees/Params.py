@@ -17,7 +17,10 @@ def conversionNumerique(numTexte):
         numNumeric = 0
     return numNumeric
     
-    
+
+##############################################
+# MESURES DE BUIT
+##############################################
 colonnesFichierMesureBruit = ['date_heure', 'leq_a', 'leq_lin', 'crete_c', 'fast_inst_a', 'fast_max_a', 'fast_min_a', 'to_6',
                               'to_8', 'to_10', 'to_12', 'to_16','to_20', 'to_25', 'to_31', 'to_40', 'to_50', 'to_63', 'to_80', 'to_100',
                               'to_125', 'to_160', 'to_200', 'to_250', 'to_315', 'to_400', 'to_500', 'to_630', 'to_800', 'to_1000',
@@ -35,3 +38,17 @@ converters = {'leq_a': conversionNumerique, 'leq_lin': conversionNumerique, 'cre
               'to_12500': conversionNumerique, 'to_16000': conversionNumerique, 'to_20000': conversionNumerique}
 dicoMatosBruit_mesure = {'sono1': 1, 'sono2': 2, 'sono3': 3, 'sono4': 1}
 dossierBoxCsv = 'https://cerema.app.box.com/folder/164712899904'
+
+##############################################
+# COLLECTE DU RESSENTI
+##############################################
+colonnesFixesRessenti = [0, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 30, 31, 32, 33, 34, 35, 86]
+mappingColonnesFixesRessenti = {0: 'id', 6: 'adresse', 7: 'genre', 8: 'age', 9: 'emploi', 10: 'sensibilite_bruit', 11: 'periode_travail', 12: 'periode_travail_autre',
+                                13: 'sensib_bruit_travail', 15: 'gene_long_terme', 16: 'gene_long_terme_6-18', 17: 'gene_long_terme_18_22', 18: 'gene_long_terme_22_6',
+                                30: 'bati_type', 31: 'bati_annee', 32: 'debut_gene', 33: 'fin_gene', 34: 'duree_gene', 35: 'note_gene', 86: 'comment', 87: 'nom',
+                                88: 'prenom', 89: 'mail'}
+colonnesAjouteesRessenti = ['qualif_bruit', 'localisation_gene', 'vehicule_source', 'route_source', 'route_source_comment', 'source_bruit', 'source_bruit_comment',
+                            'perturbation']
+dicoAdresseAEpurerRessenti = {'adresse':['33270', '21 rue P. de Coubertin Lot st LEU Floirac'],
+                              'nom':['MOHAMMED', 'Martine', 'Françoise'],
+                              'prenom': ['HAMMOUDI', 'SINAMAN', 'Ospital']}

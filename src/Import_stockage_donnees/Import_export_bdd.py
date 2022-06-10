@@ -5,11 +5,13 @@ Created on 7 juin 2022
 @author: martin.schoreisz
 Module d'import et d'export des donnees stockees en Bdd
 '''
-import os
+import os, re
 import pandas as pd
 import Connexion_Transfert as ct
 from datetime import datetime
-from Import_stockage_donnees.Params import (conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure)
+from Outils import checkParamValues
+from Import_stockage_donnees.Params import (conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
+                                            mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti)
 
 
 def importIndexNiveauBruit(bdd='ech24'):
@@ -26,7 +28,7 @@ def importIndexNiveauBruit(bdd='ech24'):
     return indexMaxBruit
 
 
-def transfertFichierMesure2Bdd(dossierSrc, listAPasser=None , bdd='ech24'):
+def transfertFichierMesureBruit2Bdd(dossierSrc, listAPasser=None , bdd='ech24'):
     """
     fonction de transfert des csv de mesure vers la Bdd
     in : 
@@ -106,3 +108,108 @@ class FichierMesureBruitCsv(object):
         self.dfNiveauSpectre = dfBruteFichier.reset_index().rename(columns={'index': 'id'})
         self.dfNiveauSpectre['id_materiel'] = self.sonometre
         
+class FichierCsvEnquete(object):
+    """
+    classe permettant la mise en forme du fihcier csv issu de Lime Survey avant trabsfert bdd
+    """
+    def __init__(self, fichier):
+        self.fichier = fichier
+        self.ouverture()
+        self.dfExploitable, self.dfNonExploitable = self.creationDfExploitable()
+        self.listerAdresseParticipants()
+        self.declarationGeneFinale()
+        
+        
+    def renommerColonne(self, df):
+        """
+        renommer toutes les colonnes necessaires
+        in : 
+            df : datafaframe a renommer
+        """
+        for k, v in mappingColonnesFixesRessenti.items():
+            df.rename(columns={df.columns[k]: v}, inplace=True)
+            
+            
+    def ouverture(self):
+        self.dFBrute = pd.read_csv(self.fichier)
+        self.renommerColonne(self.dFBrute)
+        
+        
+    def simplifierColonneChoixMultipe(self, df, x,  typeCol):
+        """
+        ramener les colonnes à choix multiples dans une eule avec une liste de valeur
+        in : 
+            dfExploitable : df issu de la lecture des données de résultat
+            x : serie dans le cadre d'un apply
+            typeCol : string parmi qualif_bruit, localisation_gene, vehicule_source
+        """
+        checkParamValues(typeCol, colonnesAjouteesRessenti)
+        for k, v in {'qualif_bruit': [i for i in range(67,86)], 'localisation_gene': [i for i in range(63,67)], 'vehicule_source': [i for i in range(59,63)],
+                     'route_source': [48, 50, 52, 54, 56], 'source_bruit': [37, 39, 41, 43, 45], 'perturbation': [i for i in range(19,29)]}.items():
+            if typeCol == k:
+                resultat = [re.split(' \[', c.replace('[obligatoire]',''))[1][:-1] for c in df.iloc[:, v].columns
+                            if not pd.isnull(x[c]) and x[c] != 'Non']
+                break
+        for k, v in {'route_source_comment': [49, 51, 53, 55, 57], 'source_bruit_comment': [38, 40, 42, 44, 46]}.items():
+            if typeCol == k:
+                resultat = [x[c] for c in df.iloc[:, v].columns if not pd.isnull(x[c]) and x[c] != 'Non']
+        resultat = resultat if resultat else None
+        return resultat
+    
+        
+    def creationDfExploitable(self):
+        """
+        regrouper les valeurs prises par les listes de choix multiple dans une seule colonne relative à la question.
+        completion des adresses mail manquantes issue des formulaires papier
+        """
+        # separer les lignes exploitables du reste
+        dfNonExploitable =  self.dFBrute.loc[ self.dFBrute.iloc[:, 5: 87].isna().all(axis=1)].copy()
+        dfExploitable =  self.dFBrute.loc[~ self.dFBrute.iloc[:, 5: 87].isna().all(axis=1)].copy()
+        
+        # regrouper les valeurs d'attributs
+        dfExploitable['qualif_bruit'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'qualif_bruit'), axis=1)
+        dfExploitable['localisation_gene'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'localisation_gene'), axis=1)
+        dfExploitable['vehicule_source'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'vehicule_source'), axis=1)
+        dfExploitable['route_source'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'route_source'), axis=1)
+        dfExploitable['route_source_comment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'route_source_comment'), axis=1)
+        dfExploitable['source_bruit'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit'), axis=1)
+        dfExploitable['source_bruit_comment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit_comment'), axis=1)
+        dfExploitable['perturbation'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'perturbation'), axis=1)
+        
+        # completer les adresses mails
+        dfExploitable.loc[dfExploitable.mail.isna(), 'mail'] = dfExploitable.loc[dfExploitable.mail.isna()].nom+dfExploitable.loc[
+            dfExploitable.mail.isna()].prenom+'@factice.com'
+        return dfExploitable, dfNonExploitable
+    
+    
+    def listerAdresseParticipants(self):
+        # tables des adresses et des participants
+        self.dfParticipantsAdresses = self.dfExploitable.loc[~self.dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
+            ['adresse', 'nom', 'prenom', 'mail']).reset_index().copy()
+            
+        # trouver / nettoyer les participants en double avec des adresses différentes
+        self.dfParticipantsAdresses.loc[self.dfParticipantsAdresses.duplicated('mail', keep=False)].sort_values('mail')  # analyse visuelle pour déterminer les lignes à enlever et les mettre dans le parametre dicoAdresseAEpurer
+        self.dfParticipantsAdresses.drop(self.dfParticipantsAdresses.loc[(self.dfParticipantsAdresses.adresse.isin(dicoAdresseAEpurerRessenti['adresse'])) &
+                                                                         (self.dfParticipantsAdresses.nom.isin(dicoAdresseAEpurerRessenti['nom'])) &
+                                                                         (self.dfParticipantsAdresses.prenom.isin(dicoAdresseAEpurerRessenti['prenom']))
+                                                                         ].index, inplace=True)
+        
+        
+    def listerParticipantsSansAdressePostale(self):
+        """
+        out : 
+            participantsSansAdressePostale : liste d'adresse mail
+        """
+        return list(self.dfExploitable.loc[~self.dfExploitable.mail.isin(self.dfParticipantsAdresses.mail.tolist())].mail.unique())
+    
+    
+    def declarationGeneFinale(self):
+        """
+        a partir de la dfExploitable, valider les adresses pour chaque déclaration
+        """
+        self.dfDeclarationGene = self.dfExploitable.merge(self.dfParticipantsAdresses, on='mail', how='left').rename(
+            columns={'adresse_y': 'adresse', 'nom_x': 'nom', 'prenom_x': 'prenom'})[list(mappingColonnesFixesRessenti.values())+colonnesAjouteesRessenti]
+        
+    
+    
+    
