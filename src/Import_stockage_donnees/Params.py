@@ -48,7 +48,8 @@ mappingColonnesFixesRessenti = {0: 'id', 6: 'adresse', 7: 'genre', 8: 'age', 9: 
                                 30: 'bati_type', 31: 'bati_annee', 32: 'debut_gene', 33: 'fin_gene', 34: 'duree_gene', 35: 'note_gene', 86: 'comment', 87: 'nom',
                                 88: 'prenom', 89: 'mail'}
 colonnesAjouteesRessenti = ['qualif_bruit', 'localisation_gene', 'vehicule_source', 'route_source', 'route_source_comment', 'source_bruit', 'source_bruit_comment',
-                            'perturbation']
+                            'perturbation', 'papier']
 dicoAdresseAEpurerRessenti = {'adresse':['33270', '21 rue P. de Coubertin Lot st LEU Floirac'],
                               'nom':['MOHAMMED', 'Martine', 'Françoise'],
                               'prenom': ['HAMMOUDI', 'SINAMAN', 'Ospital']}
+dossierExportChartsRessenti = r'C:\Users\martin.schoreisz\Box\Cerema\3E-Prod_Env_Risq\E6-Nuisances\E61-Acoustique\60-Etudes_Locales\2022-BruitRessentiBdxMet\4-Travaux_en_cours\Illustrations\carac_reponses_enquete'
