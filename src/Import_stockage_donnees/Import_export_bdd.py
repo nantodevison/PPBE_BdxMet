@@ -11,6 +11,7 @@ import numpy as np
 import altair as alt
 import Connexion_Transfert as ct
 from datetime import datetime
+from math import pi
 from Outils import checkParamValues
 from Import_stockage_donnees.Params import (conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
                                             mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti, 
@@ -432,4 +433,58 @@ class FichierCsvEnquete(object):
             if export:
                 t['chart'].save(os.path.join(dossierExportChartsRessenti, e+'.svg'))       
         return
+
+class FichiersMeteo(object):
+    """
+    gestion du ou des fichiers bruts d'acquisition de la meteo
+    attributs : 
+        dossier : raw string du dossier contenant les fichiers meteo
+        listFichiers : liste des fichiers meteo a analyser
+        dfBrutes : df issue de la lecture des fichiers
+    methodes : 
+        ouvrirFichier()
+        analyseDirVents(dfBrute)
+        graphDiffDirVent(dfDiffDirVent, fichierSortie)
+    """
+    def __init__(self, dossier, listFichiers):
+        self.dossier = dossier
+        self.listFichiers = listFichiers
+        self.ouvrirFichier()
+        
+    def ouvrirFichier(self):
+        """
+        lecture des fichiers bruts
+        """
+        self.dfBrutes = pd.concat([pd.read_csv(os.path.join(self.dossier, f), skiprows=2, usecols=[0, 1, 2, 4, 5, 6, 9, 10, 11, 13, 14, 15],
+                                               names=['rowNum', 'dateHeure', 'vtsVentHaut', 'rayonnement', 'tempHaut', 'hygroHaut', 
+                                                      'dirVentHaut', 'dirVentBas', 'vitVentBas', 'pluie', 'tempBas', 'hygroBas'],
+                                               parse_dates=[1], dayfirst=True) for f in self.listFichiers])
+        
+        
+    def analyseDirVents(self, dfBrute):
+        """
+        ajout des attributs nécéssaire à la caractérisation des différences entre les girouettes haute et basses
+        in : 
+            dfBrute : df issue de ouvrirFichier()
+        out : 
+            dfBruteCopy : dfBrute avec ajout des attributs dirVentBas_abs, dirVentHaut_abs, diff_dir_vent, diff_dir_vent_class
+        """
+        dfBruteCopy = dfBrute.copy()
+        dfBruteCopy['dirVentBas_abs'] = abs((dfBruteCopy.dirVentBas*pi/180)-pi)*180/pi
+        dfBruteCopy['dirVentHaut_abs'] = abs((dfBruteCopy.dirVentHaut*pi/180)-pi)*180/pi
+        dfBruteCopy['diff_dir_vent'] = abs(dfBruteCopy['dirVentBas_abs'] - dfBruteCopy['dirVentHaut_abs'])
+        dfBruteCopy['diff_dir_vent_class'] = pd.cut(dfBruteCopy['diff_dir_vent'], [-1,20,40, 60, 80, 100, 1000], labels=['0 a 20', '20 a 40', '40 a 60', '60 a 80', '80 a 100', 'sup 100'])
+        return dfBruteCopy
+    
+    
+    def graphDiffDirVent(self, dfDiffDirVent, fichierSortie):
+        """
+        creation de la chartde visualisation des différences entre girouette haute et basse
+        in : 
+            dfDiffDirVent : df passée par analyseDirVents()
+        """
+        alt.Chart(dfDiffDirVent, title='Ecart entre les directions de vent haut et bas').mark_point().encode(
+            x=alt.X('dirVentBas', title='Direction du vent girouette basse'),
+            y=alt.Y('dirVentHaut', title='Direction du vent girouette haute'),
+            color=alt.Color('diff_dir_vent_class:N', title=["Valeur de l'ecart"])).properties(width=600, height=600).save(fichierSortie)
     
