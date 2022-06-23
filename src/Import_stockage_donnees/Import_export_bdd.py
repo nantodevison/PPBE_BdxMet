@@ -131,7 +131,7 @@ class FichierCsvEnquete(object):
         self.fichier = fichier
         self.ouverture()
         self.dfExploitable, self.dfNonExploitable = self.creationDfExploitable()
-        self.creerDfParticipants(self.listerAdresseParticipants(), self.declarationGeneFinale()) 
+        self.creerDfParticipants(*self.participantsGeneV0()) 
         
         
     def renommerColonne(self, df):
@@ -161,14 +161,14 @@ class FichierCsvEnquete(object):
         for k, v in {'qualif_bruit': [i for i in range(67,86)], 'localisation_gene': [i for i in range(63,67)], 'vehicule_source': [i for i in range(59,63)],
                      'route_source': [48, 50, 52, 54, 56], 'source_bruit': [37, 39, 41, 43, 45]}.items():
             if typeCol == k:
-                resultat = [re.split(' \[', c.replace('[obligatoire]',''))[1][:-1] for c in df.iloc[:, v].columns
+                resultat = [re.split(' \[', re.sub('(?i)\[obligatoire\]', '', c))[1][:-1] for c in df.iloc[:, v].columns
                             if not pd.isnull(x[c]) and x[c] != 'Non']
                 break
         for k, v in {'route_source_comment': [49, 51, 53, 55, 57], 'source_bruit_comment': [38, 40, 42, 44, 46]}.items():
             if typeCol == k:
                 resultat = [x[c] for c in df.iloc[:, v].columns if not pd.isnull(x[c]) and x[c] != 'Non']
         if typeCol == 'perturbation':
-            resultat = {re.split(' \[', c.replace('[obligatoire]',''))[1][:-1]:x[c] for c in df.iloc[:, [i for i in range(19,29)]].
+            resultat = {re.split(' \[', re.sub('(?i)\[obligatoire\]', '', c))[1][:-1]:x[c] for c in df.iloc[:, [i for i in range(19,29)]].
                                    columns if not pd.isnull(x[c]) and x[c] != 'Non'}
         resultat = resultat if resultat else None
         return resultat
@@ -200,9 +200,12 @@ class FichierCsvEnquete(object):
         return dfExploitable, dfNonExploitable
     
     
-    def listerAdresseParticipants(self):
+    def participantsGeneV0(self):
         """
-        creer la dataframe des participants avec mail, adresse, nom, prenom
+        creer la dataframe des participants avec mail, adresse, nom, prenom et la premiere version de la dataframe des decla de gene
+        out : 
+            dfParticipantsAdresses : dataframe des particpants avec seulement mail, adresse, nom, prenom
+            dfDeclarationGene : premiere version des declarations de gene
         """
         # tables des adresses et des participants
         dfParticipantsAdresses = self.dfExploitable.loc[~self.dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
@@ -214,7 +217,10 @@ class FichierCsvEnquete(object):
                                                                          (dfParticipantsAdresses.nom.isin(dicoAdresseAEpurerRessenti['nom'])) &
                                                                          (dfParticipantsAdresses.prenom.isin(dicoAdresseAEpurerRessenti['prenom']))
                                                                          ].index, inplace=True)
-        return dfParticipantsAdresses
+        dfDeclarationGene = self.dfExploitable.merge(dfParticipantsAdresses, on='mail', how='left').rename(
+            columns={'adresse_y': 'adresse', 'nom_x': 'nom', 'prenom_x': 'prenom'})[list(mappingColonnesFixesRessenti.values())+
+                                                                                    colonnesAjouteesRessenti]
+        return dfParticipantsAdresses, dfDeclarationGene
         
         
     def listerParticipantsSansAdressePostale(self):
@@ -223,16 +229,7 @@ class FichierCsvEnquete(object):
             participantsSansAdressePostale : liste d'adresse mail
         """
         return list(self.dfExploitable.loc[~self.dfExploitable.mail.isin(self.dfParticipantsAdresses.mail.tolist())].mail.unique())
-    
-    
-    def declarationGeneFinale(self):
-        """
-        a partir de la dfExploitable, valider les adresses pour chaque déclaration
-        """
-        return self.dfExploitable.merge(self.dfParticipantsAdresses, on='mail', how='left').rename(
-            columns={'adresse_y': 'adresse', 'nom_x': 'nom', 'prenom_x': 'prenom'})[list(mappingColonnesFixesRessenti.values())+colonnesAjouteesRessenti]
-            
-            
+
     def creerDfParticipants(self, dfParticipantsAdresses, dfDeclarationGene):
         """
         creer la dataframe resume des participants : 1 ligne par adresse mail
@@ -255,7 +252,8 @@ class FichierCsvEnquete(object):
                                                                         '10 - extrêmement sensible': 10}),
                                                              dfParticipant.loc[dfParticipant.duplicated('mail', keep=False)].groupby('mail').agg(
                                                                  lambda x : regrouperLigneDfValeurNonNulle(x)).reset_index().replace(
-                                                                     {'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10})])
+                                                                     {'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10})
+                                                                 ]).reset_index(drop=True).reset_index().rename(columns={'index':'id'})
         
         
     
