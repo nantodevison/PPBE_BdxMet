@@ -12,7 +12,7 @@ import altair as alt
 import Connexion_Transfert as ct
 from datetime import datetime
 from math import pi
-from Outils import checkParamValues
+from Outils import checkParamValues, regrouperLigneDfValeurNonNulle
 from Import_stockage_donnees.Params import (conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
                                             mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti, 
                                             dossierExportChartsRessenti)
@@ -114,14 +114,14 @@ class FichierMesureBruitCsv(object):
         
 class FichierCsvEnquete(object):
     """
-    classe permettant la mise en forme du fihcier csv issu de Lime Survey avant trabsfert bdd
+    classe permettant la mise en forme du fihcier csv issu de Lime Survey.
+    possibilite de transfert vers Bdd.
     attributs : 
         fichier : raw_string du chemin complet du fihcier
         dFBrute : dataframe issu de la lecture
         dfExploitable : issu de dFBrute. dFBrute modifiee pour exploitation et comprehension facilitee
         dfNonExploitable : issu de dFBrute. Partie ne pouvant etre utilisee car entierement en NaN
-        dfParticipantsAdresses : df des participants : nom / prenom / adresse / mail
-        dfDeclarationGene : dfExploitable avec une adresse par declaration des que possible
+        dfParticipants : df des participants : nom / prenom / adresse / mail / ...
     methodes : 
         listerParticipantsSansAdressePostale() : retourne la liste des particpants sans adresse
         creationDfAnalyseRetour() : creer un dico des df permettant la création de charts
@@ -131,8 +131,7 @@ class FichierCsvEnquete(object):
         self.fichier = fichier
         self.ouverture()
         self.dfExploitable, self.dfNonExploitable = self.creationDfExploitable()
-        self.listerAdresseParticipants()
-        self.declarationGeneFinale()
+        self.creerDfParticipants(self.listerAdresseParticipants(), self.declarationGeneFinale()) 
         
         
     def renommerColonne(self, df):
@@ -202,16 +201,20 @@ class FichierCsvEnquete(object):
     
     
     def listerAdresseParticipants(self):
+        """
+        creer la dataframe des participants avec mail, adresse, nom, prenom
+        """
         # tables des adresses et des participants
-        self.dfParticipantsAdresses = self.dfExploitable.loc[~self.dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
+        dfParticipantsAdresses = self.dfExploitable.loc[~self.dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
             ['adresse', 'nom', 'prenom', 'mail']).reset_index().copy()
             
         # trouver / nettoyer les participants en double avec des adresses différentes
-        self.dfParticipantsAdresses.loc[self.dfParticipantsAdresses.duplicated('mail', keep=False)].sort_values('mail')  # analyse visuelle pour déterminer les lignes à enlever et les mettre dans le parametre dicoAdresseAEpurer
-        self.dfParticipantsAdresses.drop(self.dfParticipantsAdresses.loc[(self.dfParticipantsAdresses.adresse.isin(dicoAdresseAEpurerRessenti['adresse'])) &
-                                                                         (self.dfParticipantsAdresses.nom.isin(dicoAdresseAEpurerRessenti['nom'])) &
-                                                                         (self.dfParticipantsAdresses.prenom.isin(dicoAdresseAEpurerRessenti['prenom']))
+        dfParticipantsAdresses.loc[dfParticipantsAdresses.duplicated('mail', keep=False)].sort_values('mail')  # analyse visuelle pour déterminer les lignes à enlever et les mettre dans le parametre dicoAdresseAEpurer
+        dfParticipantsAdresses.drop(dfParticipantsAdresses.loc[(dfParticipantsAdresses.adresse.isin(dicoAdresseAEpurerRessenti['adresse'])) &
+                                                                         (dfParticipantsAdresses.nom.isin(dicoAdresseAEpurerRessenti['nom'])) &
+                                                                         (dfParticipantsAdresses.prenom.isin(dicoAdresseAEpurerRessenti['prenom']))
                                                                          ].index, inplace=True)
+        return dfParticipantsAdresses
         
         
     def listerParticipantsSansAdressePostale(self):
@@ -226,8 +229,34 @@ class FichierCsvEnquete(object):
         """
         a partir de la dfExploitable, valider les adresses pour chaque déclaration
         """
-        self.dfDeclarationGene = self.dfExploitable.merge(self.dfParticipantsAdresses, on='mail', how='left').rename(
+        return self.dfExploitable.merge(self.dfParticipantsAdresses, on='mail', how='left').rename(
             columns={'adresse_y': 'adresse', 'nom_x': 'nom', 'prenom_x': 'prenom'})[list(mappingColonnesFixesRessenti.values())+colonnesAjouteesRessenti]
+            
+            
+    def creerDfParticipants(self, dfParticipantsAdresses, dfDeclarationGene):
+        """
+        creer la dataframe resume des participants : 1 ligne par adresse mail
+        in : 
+            dfParticipantsAdresses : issue de listerAdresseParticipants()
+            dfDeclarationGene : df issue de declarationGeneFinale   
+        """
+        dfParticipant = dfParticipantsAdresses.merge(
+            dfDeclarationGene[[c for c in dfDeclarationGene.columns if c not in ('adresse', 'nom', 'prenom')]],
+            on='mail', how='left', suffixes=('', '_y')).drop_duplicates(
+                ['adresse', 'genre', 'age', 'emploi', 'sensibilite_bruit', 'periode_travail', 'periode_travail_autre', 'sensib_bruit_travail', 
+                 'gene_long_terme',
+                 'gene_long_terme_6_18', 'gene_long_terme_18_22','gene_long_terme_22_6', 'bati_type', 'bati_annee'])[[
+                     'mail', 'adresse', 'genre', 'age', 'emploi', 'sensibilite_bruit', 'periode_travail', 'periode_travail_autre', 
+                     'sensib_bruit_travail', 'gene_long_terme','gene_long_terme_6_18', 'gene_long_terme_18_22','gene_long_terme_22_6', 
+                     'bati_type', 'bati_annee', 'papier']]
+        dfParticipant = dfParticipant.loc[~dfParticipant.iloc[:, 2:].isna().all(axis=1)].copy()
+        self.dfParticipants = pd.concat([dfParticipant.loc[~dfParticipant.duplicated('mail', keep=False)
+                                                             ].replace({'0 - pas du tout sensible': 0,
+                                                                        '10 - extrêmement sensible': 10}),
+                                                             dfParticipant.loc[dfParticipant.duplicated('mail', keep=False)].groupby('mail').agg(
+                                                                 lambda x : regrouperLigneDfValeurNonNulle(x)).reset_index().replace(
+                                                                     {'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10})])
+        
         
     
     def creationDfAnalyseRetour(self):
