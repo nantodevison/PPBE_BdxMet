@@ -47,7 +47,7 @@ mappingColonnesFixesRessenti = {0: 'id', 6: 'adresse', 7: 'genre', 8: 'age', 9: 
                                 13: 'sensib_bruit_travail', 15: 'gene_long_terme', 16: 'gene_long_terme_6_18', 17: 'gene_long_terme_18_22', 18: 'gene_long_terme_22_6',
                                 30: 'bati_type', 31: 'bati_annee', 32: 'debut_gene', 33: 'fin_gene', 34: 'duree_gene', 35: 'note_gene', 86: 'coment', 87: 'nom',
                                 88: 'prenom', 89: 'mail'}
-colonnesAjouteesRessenti = ['qualif_bruit', 'localisation_gene', 'vehicule_source', 'route_source', 'route_source_comment', 'source_bruit', 'source_bruit_comment',
+colonnesAjouteesRessenti = ['qualif_bruit', 'localisation_gene', 'vehicule_source', 'route_source', 'route_source_coment', 'source_bruit', 'source_bruit_coment',
                             'perturbation', 'papier']
 dicoAdresseAEpurerRessenti = {'adresse':['33270', '21 rue P. de Coubertin Lot st LEU Floirac'],
                               'nom':['MOHAMMED', 'Martine', 'Françoise'],

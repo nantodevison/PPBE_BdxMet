@@ -32,7 +32,7 @@ def importIndexNiveauBruit(bdd='ech24'):
     return indexMaxBruit
 
 
-def transfertFichierMesureBruit2Bdd(dossierSrc, listAPasser=None , bdd='ech24'):
+def transfertFichierMesureBruit2Bdd(dossierSrc, listAPasser=None, bdd='ech24'):
     """
     fonction de transfert des csv de mesure vers la Bdd
     in : 
@@ -122,16 +122,19 @@ class FichierCsvEnquete(object):
         dfExploitable : issu de dFBrute. dFBrute modifiee pour exploitation et comprehension facilitee
         dfNonExploitable : issu de dFBrute. Partie ne pouvant etre utilisee car entierement en NaN
         dfParticipants : df des participants : nom / prenom / adresse / mail / ...
+        dfDeclarations : df des declarations valides, mise en forme, avec une date de debut, et de fin
+        dfDeclarations_KO : df des declarations invalides, mise en forme, sans date de debut et de fin
     methodes : 
         listerParticipantsSansAdressePostale() : retourne la liste des particpants sans adresse
-        creationDfAnalyseRetour() : creer un dico des df permettant la création de charts
-        creationCharts(): creer et sauvegarder les charts (dossier dans module Params, format csv)
+        exportVersBdd() : creer un dico des df permettant la création de charts
     """
     def __init__(self, fichier):
         self.fichier = fichier
         self.ouverture()
-        self.dfExploitable, self.dfNonExploitable = self.creationDfExploitable()
-        self.creerDfParticipants(*self.participantsGeneV0()) 
+        dfExploitable, dfNonExploitable = self.creationDfExploitable()
+        dfParticipantsAdresses, dfDeclarationGene = self.participantsGeneV0(dfExploitable)
+        self.creerDfParticipants(dfParticipantsAdresses, dfDeclarationGene) 
+        self.creerDfDeclarations(dfDeclarationGene)
         
         
     def renommerColonne(self, df):
@@ -164,9 +167,9 @@ class FichierCsvEnquete(object):
                 resultat = [re.split(' \[', re.sub('(?i)\[obligatoire\]', '', c))[1][:-1] for c in df.iloc[:, v].columns
                             if not pd.isnull(x[c]) and x[c] != 'Non']
                 break
-        for k, v in {'route_source_comment': [49, 51, 53, 55, 57], 'source_bruit_comment': [38, 40, 42, 44, 46]}.items():
+        for k, v in {'route_source_coment': [49, 51, 53, 55, 57], 'source_bruit_coment': [38, 40, 42, 44, 46]}.items():
             if typeCol == k:
-                resultat = [x[c] for c in df.iloc[:, v].columns if not pd.isnull(x[c]) and x[c] != 'Non']
+                resultat = ' ; '.join([x[c] for c in df.iloc[:, v].columns if not pd.isnull(x[c]) and x[c] != 'Non'])
         if typeCol == 'perturbation':
             resultat = {re.split(' \[', re.sub('(?i)\[obligatoire\]', '', c))[1][:-1]:x[c] for c in df.iloc[:, [i for i in range(19,29)]].
                                    columns if not pd.isnull(x[c]) and x[c] != 'Non'}
@@ -188,27 +191,32 @@ class FichierCsvEnquete(object):
         dfExploitable['localisation_gene'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'localisation_gene'), axis=1)
         dfExploitable['vehicule_source'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'vehicule_source'), axis=1)
         dfExploitable['route_source'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'route_source'), axis=1)
-        dfExploitable['route_source_comment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'route_source_comment'), axis=1)
+        dfExploitable['route_source_coment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'route_source_coment'), axis=1)
         dfExploitable['source_bruit'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit'), axis=1)
-        dfExploitable['source_bruit_comment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit_comment'), axis=1)
+        dfExploitable['source_bruit_coment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit_coment'), axis=1)
         dfExploitable['perturbation'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'perturbation'), axis=1)
         
         # flecher les questionnaires papier et completer les adresses mails
         dfExploitable = dfExploitable.assign(papier= dfExploitable.mail.apply(lambda x: True if pd.isnull(x) else False))
         dfExploitable.loc[dfExploitable.mail.isna(), 'mail'] = dfExploitable.loc[dfExploitable.mail.isna()].nom+dfExploitable.loc[
             dfExploitable.mail.isna()].prenom+'@factice.com'
+            
+        # mettre en forme les notes de gene et sensibiilte
+        dfExploitable.replace({'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10}, inplace=True)
+        dfExploitable.replace({'0 - pas du tout gêné': 0, '10 - extrêmement gêné': 10}, inplace=True)
         return dfExploitable, dfNonExploitable
     
     
-    def participantsGeneV0(self):
+    def participantsGeneV0(self, dfExploitable):
         """
         creer la dataframe des participants avec mail, adresse, nom, prenom et la premiere version de la dataframe des decla de gene
         out : 
+            dfExploitable : dataframe issue de creationDfExploitable()
             dfParticipantsAdresses : dataframe des particpants avec seulement mail, adresse, nom, prenom
             dfDeclarationGene : premiere version des declarations de gene
         """
         # tables des adresses et des participants
-        dfParticipantsAdresses = self.dfExploitable.loc[~self.dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
+        dfParticipantsAdresses = dfExploitable.loc[~dfExploitable.iloc[:, 6].isna()].iloc[:, [6, 87, 88, 89]].reset_index(drop=True).drop_duplicates(
             ['adresse', 'nom', 'prenom', 'mail']).reset_index().copy()
             
         # trouver / nettoyer les participants en double avec des adresses différentes
@@ -217,7 +225,7 @@ class FichierCsvEnquete(object):
                                                                          (dfParticipantsAdresses.nom.isin(dicoAdresseAEpurerRessenti['nom'])) &
                                                                          (dfParticipantsAdresses.prenom.isin(dicoAdresseAEpurerRessenti['prenom']))
                                                                          ].index, inplace=True)
-        dfDeclarationGene = self.dfExploitable.merge(dfParticipantsAdresses, on='mail', how='left').rename(
+        dfDeclarationGene = dfExploitable.merge(dfParticipantsAdresses, on='mail', how='left').rename(
             columns={'adresse_y': 'adresse', 'nom_x': 'nom', 'prenom_x': 'prenom'})[list(mappingColonnesFixesRessenti.values())+
                                                                                     colonnesAjouteesRessenti]
         return dfParticipantsAdresses, dfDeclarationGene
@@ -229,6 +237,7 @@ class FichierCsvEnquete(object):
             participantsSansAdressePostale : liste d'adresse mail
         """
         return list(self.dfExploitable.loc[~self.dfExploitable.mail.isin(self.dfParticipantsAdresses.mail.tolist())].mail.unique())
+    
 
     def creerDfParticipants(self, dfParticipantsAdresses, dfDeclarationGene):
         """
@@ -254,31 +263,92 @@ class FichierCsvEnquete(object):
                                                                  lambda x : regrouperLigneDfValeurNonNulle(x)).reset_index().replace(
                                                                      {'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10})
                                                                  ]).reset_index(drop=True).reset_index().rename(columns={'index':'id'})
+        self.dfParticipants['age'] = self.dfParticipants.age.apply(lambda x: int(x.replace(' ans','')) if not pd.isnull(x) else x)
+        self.dfParticipants['bati_annee'] = self.dfParticipants['bati_annee'].apply(lambda x: int(x[:4]) if not pd.isnull(x) else x)
+    
+
+    def creerDfDeclarations(self, dfDeclarationGene):
+        """
+        creer la datafrme des declarations : 1 ligne par declaration
+        """
+        dfDeclarations = dfDeclarationGene.drop('id', axis=1, errors='ignore').merge(
+            self.dfParticipants[['id', 'mail']], on='mail')[
+                ['id','debut_gene', 'fin_gene', 'duree_gene', 'note_gene', 'source_bruit', 'source_bruit_coment', 'route_source', 
+                 'route_source_coment', 'vehicule_source', 'localisation_gene', 'qualif_bruit', 'coment']
+                ].rename(columns={'id': 'id_participant'})
+        # combler les trous dans debut ou fin
+        dfDeclarations.loc[((dfDeclarations.debut_gene.notna()) & (dfDeclarations.fin_gene.notna())) |
+                                    ((dfDeclarations.debut_gene.notna()) & (dfDeclarations.duree_gene.notna())) |
+                                    ((dfDeclarations.fin_gene.notna()) & (dfDeclarations.duree_gene.notna())), 'debut_gene'
+                                   ] = dfDeclarations.loc[((dfDeclarations.debut_gene.notna()) & (dfDeclarations.fin_gene.notna())) |
+                                    ((dfDeclarations.debut_gene.notna()) & (dfDeclarations.duree_gene.notna())) |
+                                    ((dfDeclarations.fin_gene.notna()) & (dfDeclarations.duree_gene.notna()))
+                                                                  ].debut_gene.apply(lambda x: pd.to_datetime(f"2022-{x[5:]}") if not pd.isnull(x) else x)
+        dfDeclarations.loc[((dfDeclarations.debut_gene.notna()) & (dfDeclarations.fin_gene.notna())) |
+                                    ((dfDeclarations.debut_gene.notna()) & (dfDeclarations.duree_gene.notna())) |
+                                    ((dfDeclarations.fin_gene.notna()) & (dfDeclarations.duree_gene.notna())), 'fin_gene'
+                                   ] = dfDeclarations.loc[((dfDeclarations.debut_gene.notna()) & (dfDeclarations.fin_gene.notna())) |
+                                    ((dfDeclarations.debut_gene.notna()) & (dfDeclarations.duree_gene.notna())) |
+                                    ((dfDeclarations.fin_gene.notna()) & (dfDeclarations.duree_gene.notna()))
+                                                                  ].apply(lambda x: pd.to_datetime(f"2022-{x.fin_gene[5:]}") if not pd.isnull(x.fin_gene) 
+                                                                              else x.debut_gene + pd.to_timedelta(x.duree_gene, 'minute'), axis=1)
+        # corriger les erreurs de debut ete fin inverse
+        debutFinInverse = dfDeclarations.loc[dfDeclarations.debut_gene > dfDeclarations.fin_gene].copy()
+        dfDeclarations.loc[dfDeclarations.index.isin(debutFinInverse.index.tolist()), 'debut_gene'] = debutFinInverse.fin_gene
+        dfDeclarations.loc[dfDeclarations.index.isin(debutFinInverse.index.tolist()), 'fin_gene'] = debutFinInverse.debut_gene
+        # mettre à jour les duree
+        dfDeclarations['duree_gene'] = pd.to_timedelta(dfDeclarations['fin_gene']-dfDeclarations['debut_gene'], 'hour')
         
+        # virer les retours lignes intempestifs
+        dfDeclarations.coment = dfDeclarations.coment.apply(lambda x: x.replace('\n', ' ; ') if not pd.isnull(x) else x)
         
+        # extraire les declarations valides
+        self.dfDeclarations_KO = dfDeclarations.loc[((dfDeclarations.debut_gene.isna()) & (dfDeclarations.fin_gene.isna())) |
+                                                    ((dfDeclarations.debut_gene.isna()) & (dfDeclarations.duree_gene.isna())) |
+                                                    ((dfDeclarations.fin_gene.isna()) & (dfDeclarations.duree_gene.isna()))].copy()
+        self.dfDeclarations = dfDeclarations.loc[((dfDeclarations.debut_gene.notna()) & (dfDeclarations.fin_gene.notna())) |
+                                                 ((dfDeclarations.debut_gene.notna()) & (dfDeclarations.duree_gene.notna())) |
+                                                 ((dfDeclarations.fin_gene.notna()) & (dfDeclarations.duree_gene.notna()))].copy()
+                                                 
+                                                 
+    def exportVersBdd(self, bdd='ech24'):
+        """
+        exporter les fichiers mis en forme vers la bdd
+        """
+        with ct.ConnexionBdd(bdd) as c:
+            self.dfParticipants.drop('mail', axis=1).to_sql('participant', c.sqlAlchemyConn, schema='ressenti', index=False, if_exists='append')
+            self.dfDeclarations.assign(duree_gene=self.dfDeclarations.duree_gene.apply(lambda x: str(x))
+                                           ).to_sql('situ_gene', c.sqlAlchemyConn, schema='ressenti', index=False, if_exists='append')
+            self.dfDeclarations_KO.assign(duree_gene=self.dfDeclarations.duree_gene.apply(lambda x: str(x))
+                                              ).to_sql('situ_gene_ko', c.sqlAlchemyConn, schema='ressenti', index=False, if_exists='append')
+        return
+        
+
+class ResultatsEnquete(object):
+    """
+    classe d'import des resultats de l'enquete depuis la Bdd, avec traitement
+    """  
+    def __init__(self, bdd='ech24'):
+        self.bdd = bdd
+        with ct.ConnexionBdd(self.bdd) as c:
+            self.dfParticipants = pd.read_sql('select * from ressenti.participant', c.sqlAlchemyConn)
+            self.declarations_ok = pd.read_sql('select * from ressenti.situ_gene', c.sqlAlchemyConn)
+            self.declarations_ko = pd.read_sql('select * from ressenti.situ_gene_ko', c.sqlAlchemyConn)
+    
     
     def creationDfAnalyseRetour(self):
         """
         creer des df et du dico qui vont permettre d'analyser les réponses fournies dans le fichier d'enquete
         """
         # préparation des données pour analyse rapide par camembert des informatios relatives aux participants et à l'exploitation des déclarations
-        # données sur les adresses
-        #    adresses liées à une déclaration
-        adresseDecla = pd.DataFrame({'valeurs': ['connue', 'inconnue'],
-                                     'nb_valeurs': [len(self.dfDeclarationGene.loc[~self.dfDeclarationGene.adresse.isna()]),
-                                                    len(self.dfDeclarationGene.loc[self.dfDeclarationGene.adresse.isna()])], 'test': ['adresse_declarations',
-                                                                                                                                              'adresse_declarations']})
-        #    adresses liées à un participant
-        adresseParti = pd.DataFrame({'test': 'adresse_participants', 'valeurs': ['connue', 'inconnue'], 'nb_valeurs': 
-                                     [len(self.dfParticipantsAdresses), len(self.listerParticipantsSansAdressePostale())]})
         # donnees aploitables ou non 
-        exploitable = pd.DataFrame({'test': 'exploitable', 'valeurs': ['exploitable', 'Inexploitable'], 'nb_valeurs': [len(self.dfExploitable),
-                                                                                                                             len(self.dfNonExploitable)]})
+        exploitable = pd.DataFrame({'test': 'exploitable', 'valeurs': ['exploitable', 'Inexploitable'], 'nb_valeurs': [len(self.declarations_ok),
+                                                                                                                             len(self.declarations_ko)]})
         # genre
-        genreNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.genre.notna())].drop_duplicates('mail')
-        genreNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(genreNotNaN.mail.tolist())]
-        genre = pd.concat([genreNotNaN.groupby('genre', dropna=False).id.count().reset_index().assign(test='genre').rename(
-            columns={'id': 'nb_valeurs', 'genre': 'valeurs'}), pd.DataFrame({'valeurs': ['inconnu', ], 'nb_valeurs': [len(genreNaN), ], 'test': ['genre', ]})])
+        genre = pd.DataFrame(
+                {'valeurs': ['inconnu', ], 'nb_valeurs': 
+                 [len(self.declarations_ok.loc[(self.declarations_ok.genre.notna())]),
+                  len(self.declarations_ok.loc[(self.declarations_ok.genre.isna())])], 'test': ['genre', ]})
         # emploi
         emploiNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.emploi.notna())].drop_duplicates('mail')
         emploiNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(emploiNotNaN.mail.tolist())]
