@@ -17,6 +17,10 @@ def conversionNumerique(numTexte):
         numNumeric = 0
     return numNumeric
     
+    
+bdd = 'ech24'
+startDateMesure = '2022-03-21'
+endDateMesure = '2022-04-20'
 
 ##############################################
 # MESURES DE BUIT
@@ -39,6 +43,7 @@ converters = {'leq_a': conversionNumerique, 'leq_lin': conversionNumerique, 'cre
 dicoMatosBruit_mesure = {'sono1': 1, 'sono2': 2, 'sono3': 3, 'sono4': 1}
 dossierBoxCsv = 'https://cerema.app.box.com/folder/164712899904'
 
+
 ##############################################
 # COLLECTE DU RESSENTI
 ##############################################
@@ -53,3 +58,11 @@ dicoAdresseAEpurerRessenti = {'adresse':['33270', '21 rue P. de Coubertin Lot st
                               'nom':['MOHAMMED', 'Martine', 'Françoise'],
                               'prenom': ['HAMMOUDI', 'SINAMAN', 'Ospital']}
 dossierExportChartsRessenti = r'C:\Users\martin.schoreisz\Box\Cerema\3E-Prod_Env_Risq\E6-Nuisances\E61-Acoustique\60-Etudes_Locales\2022-BruitRessentiBdxMet\4-Travaux_en_cours\Illustrations\carac_reponses_enquete'
+
+
+##############################################
+# METEO
+##############################################
+colonnesMeteo = ['id', 'date_heure', 'vts_vent_haut', 'rayonnement', 'temp_haut', 'hygro_haut',
+                 'dir_vent_haut', 'dir_vent_bas', 'vit_vent_bas', 'pluie', 'temp_bas', 'hygro_bas']
+

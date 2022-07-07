@@ -13,12 +13,12 @@ import Connexion_Transfert as ct
 from datetime import datetime
 from math import pi
 from Outils import checkParamValues, regrouperLigneDfValeurNonNulle
-from Import_stockage_donnees.Params import (conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
+from Import_stockage_donnees.Params import (bdd, conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
                                             mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti, 
-                                            dossierExportChartsRessenti)
+                                            dossierExportChartsRessenti, colonnesMeteo)
 
 
-def importIndexNiveauBruit(bdd='ech24'):
+def importIndexNiveauBruit():
     """
     recuperation du prochain index dans la table des niveaux de bruit
     in : 
@@ -63,6 +63,7 @@ class FichierMesureBruitCsv(object):
     Attributs : 
         nomFichier : string : raw string cu chemin complet du fichier
         skiprows : integer : nb de ligne a ne pas prendre en compte. Default = 49
+        dfNiveauSpectre : df des donnees
     """
     def __init__(self, nomFichier, skiprows=49):
         self.nomFichier = nomFichier
@@ -195,6 +196,7 @@ class FichierCsvEnquete(object):
         dfExploitable['source_bruit'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit'), axis=1)
         dfExploitable['source_bruit_coment'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'source_bruit_coment'), axis=1)
         dfExploitable['perturbation'] = dfExploitable.apply(lambda x: self.simplifierColonneChoixMultipe(dfExploitable, x, 'perturbation'), axis=1)
+        dfExploitable['perturbation'] = dfExploitable.perturbation.apply(lambda x: ' ; '.join([f'{k}: {v}' for k, v in x.items()]) if not pd.isnull(x) else x)
         
         # flecher les questionnaires papier et completer les adresses mails
         dfExploitable = dfExploitable.assign(papier= dfExploitable.mail.apply(lambda x: True if pd.isnull(x) else False))
@@ -253,7 +255,7 @@ class FichierCsvEnquete(object):
                  'gene_long_terme',
                  'gene_long_terme_6_18', 'gene_long_terme_18_22','gene_long_terme_22_6', 'bati_type', 'bati_annee'])[[
                      'mail', 'adresse', 'genre', 'age', 'emploi', 'sensibilite_bruit', 'periode_travail', 'periode_travail_autre', 
-                     'sensib_bruit_travail', 'gene_long_terme','gene_long_terme_6_18', 'gene_long_terme_18_22','gene_long_terme_22_6', 
+                     'sensib_bruit_travail', 'gene_long_terme','gene_long_terme_6_18', 'gene_long_terme_18_22','gene_long_terme_22_6', 'perturbation',
                      'bati_type', 'bati_annee', 'papier']]
         dfParticipant = dfParticipant.loc[~dfParticipant.iloc[:, 2:].isna().all(axis=1)].copy()
         self.dfParticipants = pd.concat([dfParticipant.loc[~dfParticipant.duplicated('mail', keep=False)
@@ -334,6 +336,22 @@ class ResultatsEnquete(object):
             self.dfParticipants = pd.read_sql('select * from ressenti.participant', c.sqlAlchemyConn)
             self.declarations_ok = pd.read_sql('select * from ressenti.situ_gene', c.sqlAlchemyConn)
             self.declarations_ko = pd.read_sql('select * from ressenti.situ_gene_ko', c.sqlAlchemyConn)
+        self.miseEnformeAttributsListe()
+        # creation des donnees
+        self.dicoCharts = self.creationDfAnalyseRetour()
+        
+    
+    def miseEnformeAttributsListe(self):
+        self.declarations_ok['route_source'] = self.declarations_ok['route_source'].apply(
+            lambda x: re.sub('( \(.*\)|\"|\{|\})', '', x).split(',') if not pd.isnull(x) else x)
+        self.declarations_ok['source_bruit'] = self.declarations_ok['source_bruit'].apply(
+            lambda x: re.sub('( \(.*\)|\"|\{|\})', '', x).split(',') if not pd.isnull(x) else x)
+        self.declarations_ok['vehicule_source'] = self.declarations_ok['vehicule_source'].apply(
+            lambda x: re.sub('(\"|\{|\})', '', re.sub('(?i)\([a-z]+, [a-z]+, \.\.\.\)', '', x)).split(',') if not pd.isnull(x) else x)
+        self.declarations_ok['localisation_gene'] = self.declarations_ok['localisation_gene'].apply(
+            lambda x: re.sub('( \(.*\)|\"|\{|\})', '', x).split(',') if not pd.isnull(x) else x)
+        self.declarations_ok['qualif_bruit'] = self.declarations_ok['qualif_bruit'].apply(
+            lambda x: re.sub('( \(.*\)|\"|\{|\})', '', x).split(',') if not pd.isnull(x) else x)
     
     
     def creationDfAnalyseRetour(self):
@@ -345,60 +363,57 @@ class ResultatsEnquete(object):
         exploitable = pd.DataFrame({'test': 'exploitable', 'valeurs': ['exploitable', 'Inexploitable'], 'nb_valeurs': [len(self.declarations_ok),
                                                                                                                              len(self.declarations_ko)]})
         # genre
-        genre = pd.DataFrame(
-                {'valeurs': ['inconnu', ], 'nb_valeurs': 
-                 [len(self.declarations_ok.loc[(self.declarations_ok.genre.notna())]),
-                  len(self.declarations_ok.loc[(self.declarations_ok.genre.isna())])], 'test': ['genre', ]})
+        genre = pd.concat([self.dfParticipants.loc[(self.dfParticipants.genre.notna())].groupby('genre').id.count().reset_index().assign(test='genre').rename(
+                columns={'id': 'nb_valeurs', 'genre': 'valeurs'}), pd.DataFrame({'valeurs': 'inconnu',
+                                                                                 'nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.genre.isna())]),
+                                                                                 'test': 'genre'}, index=[0])]).reset_index(drop=True)
         # emploi
-        emploiNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.emploi.notna())].drop_duplicates('mail')
-        emploiNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(emploiNotNaN.mail.tolist())]
-        emploi = pd.concat([emploiNotNaN.groupby('emploi', dropna=False ).id.count().reset_index().assign(test='emploi').rename(
-            columns={'id': 'nb_valeurs', 'emploi': 'valeurs'}), pd.DataFrame({'valeurs': ['inconnu',], 'nb_valeurs': [len(emploiNaN),], 'test': ['emploi',]})])
+        emploi = pd.concat([self.dfParticipants.loc[(self.dfParticipants.emploi.notna())].groupby('emploi').id.count().reset_index().assign(test='emploi').rename(
+                columns={'id': 'nb_valeurs', 'emploi': 'valeurs'}), pd.DataFrame({'valeurs': 'inconnu',
+                                                                                 'nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.emploi.isna())]),
+                                                                                 'test': 'emploi'}, index=[0])]).reset_index(drop=True)
+        
+        
         # periode de travail
-        periode_travailNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.periode_travail.notna())].drop_duplicates('mail')
-        periode_travailNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(periode_travailNotNaN.mail.tolist())]
-        periode_travail = pd.concat([periode_travailNotNaN.groupby('periode_travail', dropna=False ).id.count().reset_index().assign(test='periode_travail').rename(
-            columns={'id': 'nb_valeurs', 'periode_travail': 'valeurs'}), pd.DataFrame({'valeurs': ['inconnu',], 'nb_valeurs': [
-            len(periode_travailNaN),], 'test': ['periode_travail',]})])
-        # periode de travail autre (POUR INFO)
-        periode_travail_autre = self.dfDeclarationGene.periode_travail_autre.loc[self.dfDeclarationGene.periode_travail_autre.notna()].replace(
+        periode_travail = pd.concat([self.dfParticipants.loc[(self.dfParticipants.periode_travail.notna())].groupby('periode_travail').id.count().reset_index().rename(
+            columns={'id': 'nb_valeurs', 'periode_travail': 'valeurs'}), pd.DataFrame({'valeurs': 'inconnu', 
+                                                                      'nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.periode_travail.isna())]), 
+                                                                      'test': 'periode_travail'}, index=[0])]).reset_index(drop=True)
+        periode_travail_autre = self.dfParticipants.periode_travail_autre.loc[self.dfParticipants.periode_travail_autre.notna()].replace(
             '(Alternance Jour/nuit 12h|alternance Jour/nuit en cycle de 12h)', 'alternance Jour/nuit en cycle de 12h', regex=True).replace(
             '(.*en journée et surtout en télétravail.*|.*je travaille à mon domicile.*)', 'domicile / télétravail', regex=True).replace(
-            '(Retraitée |RETRTAITEE|Retraité)', 'retraite', regex=True).value_counts().reset_index().rename(columns={'index': 'valeurs', 'periode_travail_autre': 'nb_valeurs',
-                                                                                                                     }).assign(test='periode_travail_autre')
+            '(Retraitée |RETRTAITEE|Retraité)', 'Retraite', regex=True).value_counts().reset_index().rename(columns={
+                'index': 'valeurs', 'periode_travail_autre': 'nb_valeurs',})
+        periode_travail = pd.concat([periode_travail_autre, periode_travail]).reset_index(drop=True).drop(3).groupby('valeurs').nb_valeurs.sum(
+            ).reset_index().assign(test='periode_travail')
         # bati_type
-        bati_typeNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.bati_type.notna())].drop_duplicates('mail')
-        bati_typeNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(bati_typeNotNaN.mail.tolist())]
-        bati_type = pd.concat([bati_typeNotNaN.groupby('bati_type', dropna=False).id.count().reset_index().assign(test='periode_travail').rename(
-            columns={'id': 'nb_valeurs', 'bati_type': 'valeurs'}), pd.DataFrame({'valeurs': ['inconnu', ], 'nb_valeurs': [
-            len(bati_typeNaN),], 'test': ['bati_type',]})])
+        bati_type = pd.concat([self.dfParticipants.loc[(self.dfParticipants.bati_type.notna())].groupby('bati_type').id.count().reset_index().rename(
+            columns={'id': 'nb_valeurs', 'bati_type': 'valeurs'}).assign(test='bati_type'), pd.DataFrame({'valeurs': 'inconnu', 
+                                                                      'nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.bati_type.isna())]), 
+                                                                      'test': 'bati_type'}, index=[0])]).reset_index(drop=True)
         # bati annee
-        bati_anneeNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.bati_annee.notna())].drop_duplicates('mail')
-        batAnneeValues = bati_anneeNotNaN.groupby('bati_annee').id.count().reset_index().assign(
-            test='bati_annee').rename(columns={'id': 'nb_valeurs', 'bati_annee': 'valeurs'})#.drop(['adresse'], axis=1)
-        batAnneeValues['valeurs'] = pd.to_datetime(batAnneeValues.valeurs).dt.year
+        batAnneeValues = self.dfParticipants.loc[(self.dfParticipants.bati_annee.notna())].groupby('bati_annee').id.count().reset_index().rename(
+            columns={'id': 'nb_valeurs', 'bati_annee': 'valeurs'}).assign(test='bati_annee')
         bati_annee = batAnneeValues.groupby(np.where(batAnneeValues.valeurs>1999, 'apres loi 1999', 'avant loi 1999')
-                                           ).nb_valeurs.sum().reset_index().rename(columns={'index': 'valeurs', 'periode_travail_autre': 'nb_valeurs'}).assign(test='bati_annee')
+                                                   ).nb_valeurs.sum().reset_index().rename(columns={'index': 'valeurs', 'periode_travail_autre': 'nb_valeurs'}
+                                                                                          ).assign(test='bati_annee')
         # sensibilite au bruit
-        dfSensibBruit = self.dfDeclarationGene.loc[self.dfDeclarationGene.sensibilite_bruit.notna()].drop_duplicates(['mail', 'sensibilite_bruit']).sort_values(
-            ['mail', 'sensibilite_bruit'])[['nom', 'prenom', 'mail', 'sensibilite_bruit']]
-        dfSensibBruit = dfSensibBruit.loc[(dfSensibBruit.groupby('mail').sensibilite_bruit.transform('max') == dfSensibBruit.sensibilite_bruit)
-                                          ].replace({'0 - pas du tout sensible': 0, '10 - extrêmement sensible': 10})
-        sensibBruit = pd.concat([dfSensibBruit.groupby('sensibilite_bruit').mail.count().reset_index().rename(
-            columns={'sensibilite_bruit': 'valeurs', 'mail': 'nb_valeurs'}).assign(test='sensibilite_bruit'), pd.DataFrame({'valeurs': ['inconnu', ], 'nb_valeurs': [
-            len(self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(dfSensibBruit.mail.tolist())]), ], 'test': ['sensibilite_bruit', ]})])
+        sensibBruit = pd.concat([self.dfParticipants.loc[(self.dfParticipants.sensibilite_bruit.notna())].groupby(
+            'sensibilite_bruit').id.count().reset_index().assign(test='sensibilite_bruit').rename(
+                columns={'id': 'nb_valeurs', 'sensibilite_bruit': 'valeurs'}), 
+            pd.DataFrame({'valeurs': 'inconnu','nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.sensibilite_bruit.isna())]),
+                          'test': 'sensibilite_bruit'}, index=[0])]).reset_index(drop=True)
         # gene long terme
-        dfGeneLgTerme = self.dfDeclarationGene.loc[self.dfDeclarationGene.gene_long_terme.notna()].drop_duplicates(['mail', 'gene_long_terme']).sort_values(
-            ['mail', 'gene_long_terme'])[['nom', 'prenom', 'mail', 'gene_long_terme']]
-        dfGeneLgTerme = dfGeneLgTerme.loc[(dfGeneLgTerme.groupby('mail').gene_long_terme.transform('max') == dfGeneLgTerme.gene_long_terme)
-                                          ].replace({'0 - pas du tout gêné': 0, '10 - extrêmement gêné': 10})
-        GeneLgTerme = pd.concat([dfGeneLgTerme.groupby('gene_long_terme').mail.count().reset_index().rename(
-            columns={'gene_long_terme': 'valeurs', 'mail': 'nb_valeurs'}).assign(test='gene_long_terme'), pd.DataFrame({'valeurs': ['inconnu', ], 'nb_valeurs': [
-            len(self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(dfGeneLgTerme.mail.tolist())]), ], 'test': ['gene_long_terme', ]})])
+        GeneLgTerme = pd.concat([self.dfParticipants.loc[(self.dfParticipants.gene_long_terme.notna())].groupby(
+            'gene_long_terme').id.count().reset_index().assign(test='gene_long_terme').rename(
+                columns={'id': 'nb_valeurs', 'gene_long_terme': 'valeurs'}),
+            pd.DataFrame({'valeurs': 'inconnu','nb_valeurs': len(self.dfParticipants.loc[(self.dfParticipants.gene_long_terme.isna())]),
+                          'test': 'gene_long_terme'}, index=[0])]).reset_index(drop=True)
         # perturbation
         #     perturbation existence
-        perturbationNotNaN = self.dfDeclarationGene.loc[(self.dfDeclarationGene.perturbation.notna())].drop_duplicates('mail')
-        perturbationNaN = self.dfParticipantsAdresses.loc[~self.dfParticipantsAdresses.mail.isin(perturbationNotNaN.mail.tolist())]
+        perturbationNotNaN = self.dfParticipants.loc[self.dfParticipants.perturbation.notna()].copy()
+        perturbationNotNaN['perturbation'] = perturbationNotNaN['perturbation'].apply(lambda x: {z.split(': ')[0]: z.split(': ')[1] for z in x.split(' ; ')})
+        perturbationNaN = self.dfParticipants.loc[self.dfParticipants.perturbation.isna()]
         perturbation = pd.DataFrame({'valeurs': ['inconnue', 'connue'], 'nb_valeurs': [len(perturbationNaN), len(perturbationNotNaN)], 'test': 'presence_perturbation'})
         
         
@@ -418,42 +433,31 @@ class ResultatsEnquete(object):
         
         
         # temporalité
-        declarationSansTemporalite = self.dfDeclarationGene.loc[(self.dfDeclarationGene.debut_gene.isna()) & (self.dfDeclarationGene.fin_gene.isna()) |
-                                                                    (self.dfDeclarationGene.debut_gene.isna()) & (self.dfDeclarationGene.duree_gene.isna()) |
-                                                                    (self.dfDeclarationGene.fin_gene.isna()) & (self.dfDeclarationGene.duree_gene.isna())].copy()
-        declarationAvecTemporalite = self.dfDeclarationGene.loc[~self.dfDeclarationGene.id.isin(declarationSansTemporalite.id.tolist())].copy()
-        temporalite = pd.DataFrame({'valeurs': ['inconnue', 'connue'],'nb_valeurs': [len(declarationSansTemporalite), len(declarationAvecTemporalite)],
+        temporalite = pd.DataFrame({'valeurs': ['inconnue', 'connue'],'nb_valeurs': [len(self.declarations_ko), len(self.declarations_ok)],
                                     'test': 'presence_temporalite'})
         # standardisation de la duree
-        #     remplir les champs liés à la temporalité
-        declarationAvecTemporalite['debut_gene'] = declarationAvecTemporalite.debut_gene.apply(lambda x: pd.to_datetime(f"2022-{x[5:]}"))
-        declarationAvecTemporalite['fin_gene'] = declarationAvecTemporalite.apply(lambda x: pd.to_datetime(f"2022-{x.fin_gene[5:]}") if not pd.isnull(x.fin_gene) else x.debut_gene + pd.to_timedelta(
-            x.duree_gene, 'minute'), axis=1)
-        declarationAvecTemporalite['duree_gene'] = pd.to_timedelta(declarationAvecTemporalite['fin_gene']-declarationAvecTemporalite['debut_gene'], 'hour')
-        #     standardiser les durees par groupe
-        declarationAvecTemporalite['duree_standardisee'] = declarationAvecTemporalite.duree_gene.apply(lambda x: classerDureeGene(x))
-        duree_standardisee = declarationAvecTemporalite.duree_standardisee.value_counts().reset_index().rename(
+        self.declarations_ok['duree_standardisee'] = self.declarations_ok.duree_gene.apply(lambda x: classerDureeGene(x))
+        duree_standardisee = self.declarations_ok.duree_standardisee.value_counts().reset_index().rename(
             columns={'index': 'valeurs', 'duree_standardisee': 'nb_valeurs'}).assign(test='duree_standardisee')
         # analyse des notes de gene
-        #     presence de la note de gene
-        note_gene = pd.DataFrame({'valeurs': ['inconnue', 'connue'],'nb_valeurs': [len(self.dfDeclarationGene.loc[self.dfDeclarationGene.note_gene.isna()]),
-                                                                                     len(self.dfDeclarationGene.loc[~self.dfDeclarationGene.note_gene.isna()])],
-                                  'test': 'presence_note_gene'})
-        #     valeur des notes de gene
-        dfNoteGene = self.dfDeclarationGene.loc[~self.dfDeclarationGene.note_gene.isna()]
-        note_gene_valeurs = dfNoteGene.replace({'0 - pas du tout gêné': 0, '10 - extrêmement gêné': 10}).note_gene.value_counts().reset_index().rename(
+        note_gene_valeurs = self.declarations_ok.note_gene.value_counts().reset_index().rename(
             columns={'index': 'valeurs', 'note_gene': 'nb_valeurs'}).assign(test='note_gene')
         # sources de bruit
-        source_bruit = self.dfDeclarationGene.explode('source_bruit')[['id', 'source_bruit']].groupby('source_bruit', dropna=False).id.count().reset_index().fillna(
-            'inconnu').rename(columns={'source_bruit': 'valeurs', 'id': 'nb_valeurs'}).assign(test='source_bruit')
+        source_bruit = self.declarations_ok.explode('source_bruit')[['id_participant', 'source_bruit']].groupby('source_bruit', dropna=False).id_participant.count(
+            ).reset_index().fillna('inconnu').rename(columns={'source_bruit': 'valeurs', 'id_participant': 'nb_valeurs'}).assign(test='source_bruit')
         # route source
-        route_source = self.dfDeclarationGene.explode('route_source')[['id', 'route_source']].groupby('route_source').id.count().reset_index().fillna(
-            'inconnu').rename(columns={'route_source': 'valeurs', 'id': 'nb_valeurs'}).assign(test='route_source')
+        route_source = self.declarations_ok.explode('route_source')[['id_participant', 'route_source']].groupby('route_source', dropna=False).id_participant.count(
+            ).reset_index().fillna('inconnu').rename(columns={'route_source': 'valeurs', 'id_participant': 'nb_valeurs'}).assign(test='route_source')
         # vehicules source
-        vehicule_source = self.dfDeclarationGene.explode('vehicule_source')[['id', 'vehicule_source']].groupby('vehicule_source').id.count().reset_index().fillna(
-            'inconnu').rename(columns={'vehicule_source': 'valeurs', 'id': 'nb_valeurs'}).assign(test='vehicule_source')
-        for d in (adresseDecla, adresseParti, exploitable, genre, emploi, periode_travail, periode_travail_autre, bati_type, bati_annee, sensibBruit, GeneLgTerme,
-                  temporalite, duree_standardisee, note_gene, note_gene_valeurs, source_bruit, route_source, vehicule_source, perturbation):
+        vehicule_source = self.declarations_ok.explode('vehicule_source')[['id_participant', 'vehicule_source']].groupby(
+            'vehicule_source', dropna=False).id_participant.count().reset_index().fillna('inconnu').rename(
+                columns={'vehicule_source': 'valeurs', 'id_participant': 'nb_valeurs'}).assign(test='vehicule_source')
+        # localisation
+        localisation_gene = self.declarations_ok.explode('localisation_gene')[['id_participant', 'localisation_gene']].groupby(
+            'localisation_gene', dropna=False).id_participant.count().reset_index().fillna('inconnu').rename(
+                columns={'localisation_gene': 'valeurs', 'id_participant': 'nb_valeurs'}).assign(test='localisation_gene')
+        for d in (exploitable, genre, emploi, periode_travail, bati_type, bati_annee, sensibBruit, GeneLgTerme,
+                  temporalite, duree_standardisee, note_gene_valeurs, source_bruit, route_source, vehicule_source, perturbation, localisation_gene):
             d['pctag'] = d.apply(lambda x: f"{x.nb_valeurs} ({int(x.nb_valeurs / d.nb_valeurs.sum()*100)}%)", axis=1)
             d.replace('(é|è|ê)', 'e', regex=True, inplace=True)
             d.replace('ç', 'c', regex=True, inplace=True)
@@ -462,7 +466,8 @@ class ResultatsEnquete(object):
         # cas speciaux des graphs autres que circuilaires
         # graph de relation entre la sensibilite et la gene et entre les perturbation et leurs occurences
         # sensibiite et gene
-        dfNoteGenesensibilite = dfNoteGene[['mail', 'note_gene']].merge(dfSensibBruit, on='mail')[['mail', 'note_gene', 'sensibilite_bruit']]
+        dfNoteGenesensibilite = self.declarations_ok[['id_participant', 'note_gene']].merge(self.dfParticipants[['id', 'sensibilite_bruit']],
+                                                                                           left_on='id_participant', right_on='id').drop('id', axis=1)
         # perturbation et occurence
         dfPerturbation = pd.concat([pd.DataFrame.from_dict(v, orient='index', columns=['frequence',]).reset_index() 
                                     for v in perturbationNotNaN['perturbation'].to_dict().values()]).rename(columns={'index': 'perturbation_type'}
@@ -477,7 +482,6 @@ class ResultatsEnquete(object):
                       'genre': {'data': genre, 'titre': 'Repartition des participants selon leur genre', 'angle': 0}, 
                       'emploi': {'data': emploi, 'titre': 'Repartition des participants selon leur emploi', 'angle': 45},
                       'periode_travail': {'data': periode_travail, 'titre': 'Repartition des participants selon leur periode de travail', 'angle': 0},
-                      'periode_travail_autre': {'data': periode_travail_autre, 'titre': 'Autre periode de travail des participants', 'angle': 0},
                       'bati_type': {'data': bati_type, 'titre': 'Repartition des participants selon leur type de logement', 'angle': 0},
                       'bati_annee': {'data': bati_annee, 'titre': ['Repartition des logements des participants', 'selon leur annee de construction']
                                      , 'angle': 0},
@@ -485,19 +489,23 @@ class ResultatsEnquete(object):
                       'temporalite': {'data': temporalite, 'titre': ['Repartition des declarations de gene selon', 'la presence des donnees de temporalite'], 'angle': 0},
                       'duree_standardisee': {'data': duree_standardisee, 'titre': ['Repartition des declarations selon', 'la duree de la gene'],
                                              'angle': 0},
-                      'note_gene': {'data': note_gene, 'titre': ['Repartition des declarations selon', 'la presence de note de gene'], 'angle': 0},
                       'note_gene_valeurs': {'data': note_gene_valeurs, 'titre': ['Repartition des declarations selon', 'la note de gene declaree'],
                                             'angle': 80},
                       'source_bruit': {'data': source_bruit, 'titre': ['Repartition des declarations selon', 'la source de bruit'],'angle': 60}, 
                       'route_source': {'data': route_source, 'titre': ['Repartition des declarations selon', 'la route source du bruit'],'angle': 60},
-                      'vehicule_source': {'data': vehicule_source, 'titre': ['Repartition des declarations selon', 'la route source du bruit'],'angle': 0},
-                      'perturbation': {'data': perturbation, 'titre': ['Repartition des participants selon', 'les declarations de perturbation'],'angle': 0},
-                      'note_gene_senibilite': {'data': dfNoteGenesensibilite, 'titre': ["Nombre de declaration", "de gene selon la sensibilite"],'angle': 0}, 
+                      'vehicule_source': {'data': vehicule_source, 'titre': ['Repartition des declarations selon', 'les vehicules source du bruit'],
+                                          'angle': 0},
+                      'perturbation': {'data': perturbation, 'titre': ['Repartition des participants selon', 'les declarations de perturbation'],
+                                       'angle': 0},
+                      'note_gene_senibilite': {'data': dfNoteGenesensibilite, 'titre': ["Nombre de declaration", "de gene selon la sensibilite"],
+                                               'angle': 0},
+                      'localisation_gene': {'data': localisation_gene, 'titre': ["Nombre de declaration de gene", "selon la localisation du ressenti"],
+                                               'angle': 0},
                       'perturbation_occurence': {'data': dfPerturbation, 'titre': ["Declarations d'occurence de perturbations"],'angle': 0}}
         return dicoCharts
 
 
-    def creationCharts(self, dicoCharts, export=True):
+    def creationCharts(self, export=True):
         """
         création des charts issues de l'analyse des déclarations de gene. export des charts dans le dossier 
         specifie dans le moduel de parametre
@@ -506,8 +514,8 @@ class ResultatsEnquete(object):
         out :
             dicoCharts : ajout de la clé 'chart' au dictionnaire en entrée
         """
-        for e in dicoCharts.keys():
-            t = dicoCharts[e]
+        for e in self.dicoCharts.keys():
+            t = self.dicoCharts[e]
             if e not in ('note_gene_senibilite', 'perturbation_occurence'): #  Charts en forme de camembert
                 base = alt.Chart(t['data'], title=t['titre']).encode(
                         theta=alt.Theta(field="nb_valeurs", type="quantitative", stack=True, sort='ascending'),
@@ -546,16 +554,20 @@ class FichiersMeteo(object):
     def __init__(self, dossier, listFichiers):
         self.dossier = dossier
         self.listFichiers = listFichiers
-        self.ouvrirFichier()
+        self.importBdd()
         
     def ouvrirFichier(self):
         """
         lecture des fichiers bruts
         """
         self.dfBrutes = pd.concat([pd.read_csv(os.path.join(self.dossier, f), skiprows=2, usecols=[0, 1, 2, 4, 5, 6, 9, 10, 11, 13, 14, 15],
-                                               names=['rowNum', 'dateHeure', 'vtsVentHaut', 'rayonnement', 'tempHaut', 'hygroHaut', 
-                                                      'dirVentHaut', 'dirVentBas', 'vitVentBas', 'pluie', 'tempBas', 'hygroBas'],
+                                               names=colonnesMeteo,
                                                parse_dates=[1], dayfirst=True) for f in self.listFichiers])
+        
+    
+    def importBdd(self):
+        with ct.ConnexionBdd(bdd) as c: 
+            self.dfBrutes = pd.read_sql('select * from mesures_physiques.meteo', c.sqlAlchemyConn)
         
         
     def analyseDirVents(self, dfBrute):
