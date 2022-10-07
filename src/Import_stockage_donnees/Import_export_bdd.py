@@ -12,7 +12,7 @@ import altair as alt
 import Connexion_Transfert as ct
 from datetime import datetime
 from math import pi
-from Outils import checkParamValues, regrouperLigneDfValeurNonNulle
+from Outils import checkParamValues, regrouperLigneDfValeurNonNulle, checkAttributsinDf
 from Import_stockage_donnees.Params import (bdd, conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
                                             mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti, 
                                             dossierExportChartsRessenti, colonnesMeteo)
@@ -578,9 +578,10 @@ class FichiersMeteo(object):
         out : 
             dfBruteCopy : dfBrute avec ajout des attributs dirVentBas_abs, dirVentHaut_abs, diff_dir_vent, diff_dir_vent_class
         """
+        checkAttributsinDf(dfBrute, ['dir_vent_bas', 'dir_vent_haut'])
         dfBruteCopy = dfBrute.copy()
-        dfBruteCopy['dirVentBas_abs'] = abs((dfBruteCopy.dirVentBas*pi/180)-pi)*180/pi
-        dfBruteCopy['dirVentHaut_abs'] = abs((dfBruteCopy.dirVentHaut*pi/180)-pi)*180/pi
+        dfBruteCopy['dirVentBas_abs'] = abs((dfBruteCopy.dir_vent_bas*pi/180)-pi)*180/pi
+        dfBruteCopy['dirVentHaut_abs'] = abs((dfBruteCopy.dir_vent_haut*pi/180)-pi)*180/pi
         dfBruteCopy['diff_dir_vent'] = abs(dfBruteCopy['dirVentBas_abs'] - dfBruteCopy['dirVentHaut_abs'])
         dfBruteCopy['diff_dir_vent_class'] = pd.cut(dfBruteCopy['diff_dir_vent'], [-1,20,40, 60, 80, 100, 1000], labels=['0 a 20', '20 a 40', '40 a 60', '60 a 80', '80 a 100', 'sup 100'])
         return dfBruteCopy

@@ -6,6 +6,8 @@ Created on 7 juin 2022
 Module de parametres d'import_export des donnees
 '''
 
+import os
+
 
 def conversionNumerique(numTexte):
     """
@@ -65,4 +67,27 @@ dossierExportChartsRessenti = r'C:\Users\martin.schoreisz\Box\Cerema\3E-Prod_Env
 ##############################################
 colonnesMeteo = ['id', 'date_heure', 'vts_vent_haut', 'rayonnement', 'temp_haut', 'hygro_haut',
                  'dir_vent_haut', 'dir_vent_bas', 'vit_vent_bas', 'pluie', 'temp_bas', 'hygro_bas']
+
+##############################################
+# TRAFIC
+##############################################
+dossierTrafic = r'C:\Users\martin.schoreisz\Box\Cerema\3E-Prod_Env_Risq\E6-Nuisances\E61-Acoustique\60-Etudes_Locales\2022-BruitRessentiBdxMet\4-Travaux_en_cours\mesures\trafic\Rocade'
+listFichiers6Min = [os.path.join(dossierTrafic, f) for f in ['6Min_20220321-20220419_S43-0.xls', '6Min_20220321-20220419_S43-1.xls',
+                                                       '6Min_20220321-20220419_S43-2.xls', '6Min_20220321-20220419_S44-S45-0.xls',
+                                                       '6Min_20220321-20220419_Ech24-0.xls', '6Min_20220321-20220419_Ech24-1.xls']]
+fichierHoraireS43 = 'S43_Mar-Avril_2022.xls'
+fichierHoraireS44S45 = 'S44-S45_Mar-Avril_2022.xls'
+attributMesureTrafic = ['id', 'date_heure', 'id_instru_site', 'indicateur', 'valeur', 'periode_agreg', 'voie', 'sens']
+dicoLibCanalVoie = {'5742.00 1': 'section courante', '5742.00 2': 'section courante', '5742.91 1': 'voie lente', '5742.93 1': 'voie médiane', '5742.95 1': 'voie rapide',
+                    '5742.90 2': 'voie lente', '5742.92 2': 'voie médiane', '5742.94 2': 'voie rapide', '5243.00 1': 'section courante', '5143.00 2':'section courante',
+                    '5042.11 1': 'sortie sud', '5042.13 1': 'entrée sud', '5043.15 1': 'entrée nord',
+                    '5043.20 2': 'sortie nord', '5043.21 2': 'entrée nord', '5042.14 2': 'entrée sud'}
+dicoLibCanalSens = {'5742.00 1': 'sens exter', '5742.00 2': 'sens inter', '5742.91 1': 'sens exter', '5742.93 1': 'sens exter', '5742.95 1': 'sens exter',
+                    '5742.90 2': 'sens inter', '5742.92 2': 'sens inter', '5742.94 2': 'sens inter', '5243.00 1': 'sens exter', '5143.00 2': 'sens inter',
+                    '5042.11 1': 'sens exter', '5042.13 1': 'sens exter', '5043.15 1': 'sens exter',
+                    '5043.20 2': 'sens inter', '5043.21 2': 'sens inter', '5042.14 2': 'sens inter'}
+dicoSiteLibCanal = {8: ['5243.00 1', '5143.00 2'], 
+                    7: ['5742.00 1', '5742.00 2', '5742.91 1', '5742.93 1', '5742.95 1', '5742.90 2', '5742.92 2', '5742.94 2'], 
+                    9: ['5042.11 1', '5042.13 1', '5043.15 1', '5043.20 2', '5043.21 2', '5042.14 2']}
+listNatureMesure = ['Débit', 'Vitesse']
 
