@@ -7,6 +7,8 @@ Module de parametres d'import_export des donnees
 '''
 
 import os
+import pandas as pd
+from Connexion_Transfert import ConnexionBdd
 
 
 def conversionNumerique(numTexte):
@@ -23,6 +25,8 @@ def conversionNumerique(numTexte):
 bdd = 'ech24'
 startDateMesure = '2022-03-21'
 endDateMesure = '2022-04-20'
+with ConnexionBdd(bdd) as c:
+    enum_period_agreg = pd.read_sql("select code from agreg_bruit.enum_periode_agreg", c.sqlAlchemyConn).code.tolist()
 
 ##############################################
 # MESURES DE BUIT
