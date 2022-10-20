@@ -27,6 +27,7 @@ startDateMesure = '2022-03-21'
 endDateMesure = '2022-04-20'
 with ConnexionBdd(bdd) as c:
     enum_period_agreg = pd.read_sql("select code from agreg_bruit.enum_periode_agreg", c.sqlAlchemyConn).code.tolist()
+dicoInstruSite = {1: 'Ronsard', 3: 'Noyers', 4: 'Ladoumègue', 2: 'Villon'}
 
 ##############################################
 # MESURES DE BUIT

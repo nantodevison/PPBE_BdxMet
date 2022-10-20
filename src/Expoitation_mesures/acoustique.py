@@ -41,6 +41,21 @@ def recupDonneesAgregees(site, typeAgreg):
             f"SELECT * FROM agreg_bruit.leq_a WHERE id_instru_site = {site} and periode_agreg = '{typeAgreg}' ORDER BY date_heure", 
             c.sqlAlchemyConn)
     return dfDonneesBrutes
+
+
+def recupFractileAgregees(site, typeAgreg):
+    """
+    recuperer des données agregees depuis la bdd
+    in : 
+        site : integer. Le code correspondant à un materiel sur un site. cf table instrumentation_site de la bdd
+        typeAgreg : string. parmi typeAgregList
+    """
+    checkParamValues(typeAgreg, typeAgregList)
+    with ConnexionBdd(bdd) as c: 
+        dfDonneesBrutes = pd.read_sql(
+            f"SELECT * FROM agreg_bruit.indic_fractile WHERE id_instru_site = {site} and periode_agreg = '{typeAgreg}' ORDER BY date_heure", 
+            c.sqlAlchemyConn)
+    return dfDonneesBrutes
     
     
 def categorie_jour(date_heure):
