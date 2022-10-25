@@ -11,6 +11,8 @@ import altair as alt
 from datetime import datetime
 from Import_stockage_donnees.Params import bdd  # , startDateMesure, endDateMesure
 from Connexion_Transfert import ConnexionBdd
+from Outils import checkAttributsinDf
+from Bruit.Meteo import correctionVitesseVentMeteoFrance
 
 
 def recupDonneesMeteoBase():
@@ -22,6 +24,21 @@ def recupDonneesMeteoBase():
                         dir_vent_haut, dir_vent_bas, hygro_haut, hygro_bas, rayonnement, pluie 
                   FROM mesures_physiques.meteo m"""
         df = pd.read_sql(rqt, c.sqlAlchemyConn)
+    return df
+
+
+def recupDonneesMeteofranceBase():
+    """
+    telechager les donnees meteo
+    """
+    with ConnexionBdd(bdd) as c:
+        rqt = """SELECT station, date_3heures, dir_vent_moy_10min, vit_vent_moy_10min, temperature_k,
+                        hygrometrie, nebulosite, nebulosite_nuage_inferieur, pluie_derniere_heure, 
+                        pluie_3_dernieres_heures, pluie_6_dernieres_heures, pluie_12_dernieres_heures, 
+                        pluie_24_dernieres_heures, id
+                  FROM mesures_physiques.meteo_france;"""
+        df = pd.read_sql(rqt, c.sqlAlchemyConn)
+    df['vitesseHauteurPerso'] = df.vit_vent_moy_10min.apply(lambda x: correctionVitesseVentMeteoFrance(x, 3))
     return df
 
 
@@ -42,13 +59,11 @@ def creerGraphMeteo(dfAnglesOrienteRecepteurs, jour=None, hauteur=150, largeur=6
     """
     base = (alt.Chart(dfAnglesOrienteRecepteurs
                   .assign(vitesseVentKmH=dfAnglesOrienteRecepteurs.vts_vent_haut*3.6,
-                          homogeneHaut=0.015,
-                          homogeneBas=-0.015,
                           jour=dfAnglesOrienteRecepteurs.date_heure.dt.dayofyear,
                           heure_minute=dfAnglesOrienteRecepteurs.date_heure.apply(lambda x: f"{x.strftime('%H:%M')}")))
         .encode(x=alt.X('heure_minute', title='Heure')))
     vent = (base.mark_point(shape="arrow", opacity=1).encode(
-        y=alt.Y("vitesseVentKmH:Q", scale=alt.Scale(domain=(-5,30))),
+        y=alt.Y("vitesseVentKmH:Q", scale=alt.Scale(domain=(-5,30)), title='Vitesse du vent (km/h)'),
         size=alt.Size('vitesseVentKmH:Q', scale=alt.Scale(rangeMax=4000, rangeMin=-10, domainMin=-1, domainMax=30), legend=None),
         angle=alt.Angle("dir_vent_haut:Q", scale=alt.Scale(domain=[0, 360], range=[180, 540])),
         color=alt.Color("vitesseVentKmH:Q", scale=alt.Scale(scheme='turbo', domainMin=-1, domainMax=30), legend=None))
@@ -61,7 +76,7 @@ def creerGraphMeteo(dfAnglesOrienteRecepteurs, jour=None, hauteur=150, largeur=6
                            axis=alt.Axis(titleColor=couleurRayonnement)))
                    .properties(height=hauteur, width=largeur))
     pluie = (base.mark_point(color=couleurPluie, size=60, shape='diamond', filled=True).encode(
-        y=alt.Y('pluie', 
+        y=alt.Y('pluie', title='Pluie (mm)',
                 scale=alt.Scale(domain=domainPluie),
                 axis=alt.Axis(titleColor=couleurPluie))).transform_filter("datum.pluie > 0")
              .properties(height=hauteur, width=largeur))
@@ -83,8 +98,91 @@ def creerGraphMeteo(dfAnglesOrienteRecepteurs, jour=None, hauteur=150, largeur=6
                              .configure_legend(titleFontSize=13, labelFontSize=12)
                              .configure_axis(labelFontSize=13, titleFontSize=12))
     return meteoGlobal
+
+
+def concatMeteoFranceEtSite(dfAnglesOrienteRecepteurs, dfMeteoFranceBx):
+    """
+    fusionner les deux sources de données avant les graphs
+    """
+    checkAttributsinDf(dfAnglesOrienteRecepteurs, ['date_heure', 'ConditionPropagation', 'dir_vent_haut',
+                                                   'vts_vent_haut', 'temp_haut_k', 'grad_moy'])
+    checkAttributsinDf(dfMeteoFranceBx, ['date_heure', 'ConditionPropagation', 'dir_vent_moy_10min',
+                                         'vitesseHauteurPerso', 'temperature_k'])
+    dfMeteoCompRiverain = (pd.concat(
+    [dfAnglesOrienteRecepteurs[['date_heure', 'ConditionPropagation', 'dir_vent_haut',
+                                'vts_vent_haut', 'temp_haut_k', 'grad_moy']].assign(source='Mesures sur site'),
+     dfMeteoFranceBx[['date_heure', 'ConditionPropagation', 'dir_vent_moy_10min',
+                      'vitesseHauteurPerso', 'temperature_k']].rename(columns={'dir_vent_moy_10min': 'dir_vent_haut',
+                                                                              'vitesseHauteurPerso': 'vts_vent_haut',
+                                                                              'temperature_k': 'temp_haut_k'}).assign(
+                                                                                  source='MétéoFrance Mérignac')]))
+    return dfMeteoCompRiverain
+
+
+def creerGraphCompConditionsPropa(dfAnglesOrienteRecepteurs, dfMeteoFranceBx, largeur=1500, hauteur=400):
+    """
+    creer un graph de comparaison des donnees issues de meteoFrance et du matos sur site
+    in: 
+        dfAnglesOrienteRecepteurs: dataframe issue du module météo de Outil.Bruit, classe DonneesMeteo   
+        dfMeteoFranceBx : dataframe issu de MétéoFrance, cf Outil.Bruit recupDonneesMeteofranceBase()
+    """
+    dfMeteoCompRiverain=concatMeteoFranceEtSite(dfAnglesOrienteRecepteurs, dfMeteoFranceBx
+                                                ).replace({'ConditionPropagation': {'favorable': 'defavorable', 'defavorable': 'favorable'}})
+
+    return (alt.Chart(dfMeteoCompRiverain, width=largeur, height=hauteur, title=['Évolution des conditions de popagation du son ; Point de vue riverain'])
+             .mark_line(strokeWidth=2)
+             .encode(
+                 x=alt.X('date_heure:T', title='Jour'),
+                 y=alt.Y('ConditionPropagation:N', title='Conditions de propagations', sort=['favorable', 'homogene', 'defavorable']),
+                 order=alt.EncodingSortField('date_3heures:T'),
+                 color='source:N').configure_title(align='center', anchor='middle', fontSize=20)
+                             .configure_legend(titleFontSize=13, labelFontSize=12)
+                             .configure_axis(labelFontSize=13, titleFontSize=12))
     
-    
+
+def creerGraphCompVentSiteMeteoFrance(dfMeteoCompRiverain, jour=None, largeur=800, hauteur=150):
+    """
+    graph des conditions aréodynamiques de propagation, concaténer verticalement avec les données de site et celles 
+    de la station Météo de Mérignac
+    in :
+        dfMeteoCompRiverain : df concatener des donnée des deux sources
+    """
+    checkAttributsinDf(dfMeteoCompRiverain, ['vts_vent_haut', 'date_heure', 'dir_vent_haut'])
+    dfMeteoCompRiverain = dfMeteoCompRiverain.assign(vitesseVentKmH=dfMeteoCompRiverain.vts_vent_haut*3.6,
+                                                jour=dfMeteoCompRiverain.date_heure.dt.dayofyear,
+                                                heure_minute=dfMeteoCompRiverain.date_heure.apply(lambda x: f"{x.strftime('%H:%M')}"))
+    base = (alt.Chart(dfMeteoCompRiverain)
+        .mark_point(shape="arrow", opacity=1)
+        .encode(x=alt.X('heure_minute', title='Heure'),
+                y=alt.Y("vitesseVentKmH:Q"),
+                size=alt.Size('vitesseVentKmH:Q', scale=alt.Scale(rangeMax=4000, rangeMin=-10, domainMin=-1, domainMax=30), legend=None),
+                angle=alt.Angle("dir_vent_haut:Q", scale=alt.Scale(domain=[0, 360], range=[180, 540])),
+                color=alt.Color("vitesseVentKmH:Q", scale=alt.Scale(scheme='turbo', domainMin=-1, domainMax=30), legend=None))
+        .properties(height=hauteur, width=largeur))
+    if not jour:
+        slider = alt.binding_range(min=80, max=109, step=1)
+        select_day = alt.selection_single(name="jour", fields=['jour'],
+                                          bind=slider, init={'jour': 80})
+        chart = ((base.transform_filter(f"(datum.source == 'Mesures sur site')")
+                     .properties(title='force et vitesse du vent sur site') & 
+                 base.transform_filter(f"(datum.source == 'MétéoFrance Mérignac')")
+                     .properties(title='force et vitesse du vent relevés par Météo France (Mérignac)'))
+                     .add_selection(select_day)
+                     .transform_filter(select_day)
+                     .configure_title(align='center', anchor='middle', fontSize=20)
+                     .configure_legend(titleFontSize=13, labelFontSize=12)
+                     .configure_axis(labelFontSize=13, titleFontSize=12))
+    else:
+        titre = [f"Conditions aérodynamiques le {datetime.strptime('2022' + '-' + str(jour).rjust(3 , '0'), '%Y-%j').strftime('%A %d %B %Y')}"]
+        chart = ((base.transform_filter(f"(datum.source == 'Mesures sur site') & (datum.jour == {jour})")
+                     .properties(title='force et vitesse du vent sur site') & 
+                 base.transform_filter(f"(datum.source == 'MétéoFrance Mérignac') & (datum.jour == {jour})")
+                     .properties(title='force et vitesse du vent relevés par Météo France (Mérignac)'))
+                     .properties(title=titre)
+                     .configure_title(align='center', anchor='middle', fontSize=20)
+                     .configure_legend(titleFontSize=13, labelFontSize=12)
+                     .configure_axis(labelFontSize=13, titleFontSize=12))
+    return chart
     
     
     

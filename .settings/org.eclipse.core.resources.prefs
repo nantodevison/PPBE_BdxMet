@@ -1,9 +1,9 @@
 eclipse.preferences.version=1
 encoding//src/Carac_situ_acoustiq/Analyse_emission.py=utf-8
 encoding//src/Carac_situ_acoustiq/Graphs_emission.py=utf-8
+encoding//src/Expoitation_mesures/Acoustique.py=utf-8
+encoding//src/Expoitation_mesures/Analyses_croises.py=utf-8
 encoding//src/Expoitation_mesures/Meteo.py=utf-8
 encoding//src/Expoitation_mesures/Trafic.py=utf-8
-encoding//src/Expoitation_mesures/acoustique.py=utf-8
-encoding//src/Expoitation_mesures/analyses_croises.py=utf-8
 encoding//src/Import_stockage_donnees/Import_export_bdd.py=utf-8
 encoding//src/Import_stockage_donnees/Params.py=utf-8
