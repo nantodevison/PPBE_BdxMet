@@ -57,25 +57,30 @@ def creerGraphMeteo(dfAnglesOrienteRecepteurs, jour=None, hauteur=150, largeur=6
         couleurPluie : string, couleur du point représentant la pluie
         configure : booleen : ajoute ou non la config des axes, legende, titre
     """
+    checkAttributsinDf(dfAnglesOrienteRecepteurs, ['vts_vent_haut', 'date_heure', 'dir_vent_haut', 'rayonnement', 'pluie'])
     base = (alt.Chart(dfAnglesOrienteRecepteurs
                   .assign(vitesseVentKmH=dfAnglesOrienteRecepteurs.vts_vent_haut*3.6,
                           jour=dfAnglesOrienteRecepteurs.date_heure.dt.dayofyear,
-                          heure_minute=dfAnglesOrienteRecepteurs.date_heure.apply(lambda x: f"{x.strftime('%H:%M')}")))
-        .encode(x=alt.X('heure_minute', title='Heure')))
+                          heure_minute=dfAnglesOrienteRecepteurs.date_heure.apply(lambda x: f"{x.strftime('%H:%M')}"))))
     vent = (base.mark_point(shape="arrow", opacity=1).encode(
+        x=alt.X('heure_minute', title='Heure', axis=alt.Axis(labels=False)),
         y=alt.Y("vitesseVentKmH:Q", scale=alt.Scale(domain=(-5,30)), title='Vitesse du vent (km/h)'),
         size=alt.Size('vitesseVentKmH:Q', scale=alt.Scale(rangeMax=4000, rangeMin=-10, domainMin=-1, domainMax=30), legend=None),
         angle=alt.Angle("dir_vent_haut:Q", scale=alt.Scale(domain=[0, 360], range=[180, 540])),
         color=alt.Color("vitesseVentKmH:Q", scale=alt.Scale(scheme='turbo', domainMin=-1, domainMax=30), legend=None))
             .properties(height=hauteur, width=largeur))
-    temperature = (base.mark_line(color='Grey').encode(y=alt.Y('temp_haut', title='Temperature', scale=alt.Scale(domainMax=tempMax)))
+    temperature = (base.mark_line(color='Grey').encode(
+                    x=alt.X('heure_minute', title='Heure', axis=alt.Axis(labelOverlap=True)),
+                    y=alt.Y('temp_haut', title='Temperature (°C)', scale=alt.Scale(domainMax=tempMax)))
                    .properties(height=hauteur, width=largeur))
     rayonnement = (base.mark_line(color=couleurRayonnement).encode(
-                   y=alt.Y('rayonnement',
+                   x=alt.X('heure_minute', title='Heure'),
+                   y=alt.Y('rayonnement', title='Rayonnement (W/m²)',
                            scale=alt.Scale(domainMax=rayonnementMax),
                            axis=alt.Axis(titleColor=couleurRayonnement)))
                    .properties(height=hauteur, width=largeur))
     pluie = (base.mark_point(color=couleurPluie, size=60, shape='diamond', filled=True).encode(
+        x=alt.X('heure_minute', title='Heure', axis=alt.Axis(labelOverlap=True)),
         y=alt.Y('pluie', title='Pluie (mm)',
                 scale=alt.Scale(domain=domainPluie),
                 axis=alt.Axis(titleColor=couleurPluie))).transform_filter("datum.pluie > 0")
