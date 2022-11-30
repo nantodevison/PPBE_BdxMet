@@ -7,9 +7,11 @@ extraire et traiter les donnees de trafic
 '''
 
 import pandas as pd
+import altair as alt
+from datetime import datetime
 from Import_stockage_donnees.Params import bdd, enum_period_agreg  # , startDateMesure, endDateMesure
-from Connexion_Transfert import ConnexionBdd
-from Outils import checkParamValues
+from Connexions.Connexion_Transfert import ConnexionBdd
+from Outils.Outils import checkParamValues, checkAttributsinDf
 
 
 def recupDonneesTraficBase(id_instru_site):
@@ -52,3 +54,5 @@ def recupDonneesTraficVlPl2Sens(id_instru_site):
                   WHERE id_instru_site = {id_instru_site}"""
         df = pd.read_sql(rqt, c.sqlAlchemyConn)
     return df
+    
+    

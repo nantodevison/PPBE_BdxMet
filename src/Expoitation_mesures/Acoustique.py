@@ -8,8 +8,8 @@ module de traitement des donn�es acoustiques stock�es dans la base
 
 import pandas as pd
 from Import_stockage_donnees.Params import bdd, startDateMesure, endDateMesure
-from Connexion_Transfert import ConnexionBdd
-from Outils import checkParamValues
+from Connexions.Connexion_Transfert import ConnexionBdd
+from Outils.Outils import checkParamValues
 
 with ConnexionBdd(bdd) as c:
     typeAgregList = pd.read_sql('select code from agreg_bruit.enum_periode_agreg', c.sqlAlchemyConn).code.tolist()

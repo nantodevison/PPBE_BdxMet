@@ -8,7 +8,7 @@ Module de parametres d'import_export des donnees
 
 import os
 import pandas as pd
-from Connexion_Transfert import ConnexionBdd
+from Connexions.Connexion_Transfert import ConnexionBdd
 
 
 def conversionNumerique(numTexte):

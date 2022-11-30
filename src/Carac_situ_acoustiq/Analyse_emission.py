@@ -16,8 +16,7 @@ import pandas as pd
 
 import Bruit.Emission as be
 import Import_trafics as it
-import Outils as O
-
+import Outils.Outils as O
 
 
 def importFichierTraficDIRA(fichiersSynthese, dossierHoraire, annee, bdd, tableComptage, nomFichierHoraire):

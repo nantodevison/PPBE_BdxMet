@@ -9,11 +9,11 @@ import os, re
 import pandas as pd
 import numpy as np
 import altair as alt
-import Connexion_Transfert as ct
+from Connexions import Connexion_Transfert as ct
 from datetime import datetime
 from math import pi
-from Outils import checkParamValues, regrouperLigneDfValeurNonNulle, checkAttributsinDf
-from Import_stockage_donnees.Params import (bdd, conversionNumerique, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
+from Outils.Outils import checkParamValues, regrouperLigneDfValeurNonNulle, checkAttributsinDf
+from Import_stockage_donnees.Params import (bdd, colonnesFichierMesureBruit, converters, dicoMatosBruit_mesure,
                                             mappingColonnesFixesRessenti, colonnesAjouteesRessenti, dicoAdresseAEpurerRessenti, 
                                             dossierExportChartsRessenti, colonnesMeteo)
 

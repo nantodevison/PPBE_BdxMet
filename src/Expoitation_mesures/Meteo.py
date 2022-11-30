@@ -10,8 +10,8 @@ import pandas as pd
 import altair as alt
 from datetime import datetime
 from Import_stockage_donnees.Params import bdd  # , startDateMesure, endDateMesure
-from Connexion_Transfert import ConnexionBdd
-from Outils import checkAttributsinDf
+from Connexions.Connexion_Transfert import ConnexionBdd
+from Outils.Outils import checkAttributsinDf
 from Bruit.Meteo import correctionVitesseVentMeteoFrance
 
 
