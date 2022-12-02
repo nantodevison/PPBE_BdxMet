@@ -131,8 +131,8 @@ def creerGraphCompConditionsPropa(dfAnglesOrienteRecepteurs, dfMeteoFranceBx, la
         dfAnglesOrienteRecepteurs: dataframe issue du module météo de Outil.Bruit, classe DonneesMeteo   
         dfMeteoFranceBx : dataframe issu de MétéoFrance, cf Outil.Bruit recupDonneesMeteofranceBase()
     """
-    dfMeteoCompRiverain=concatMeteoFranceEtSite(dfAnglesOrienteRecepteurs, dfMeteoFranceBx
-                                                ).replace({'ConditionPropagation': {'favorable': 'defavorable', 'defavorable': 'favorable'}})
+    dfMeteoCompRiverain=concatMeteoFranceEtSite(dfAnglesOrienteRecepteurs, dfMeteoFranceBx.replace(
+        {'ConditionPropagation': {'favorable': 'defavorable', 'defavorable': 'favorable'}}))
 
     return (alt.Chart(dfMeteoCompRiverain, width=largeur, height=hauteur, title=['Évolution des conditions de popagation du son ; Point de vue riverain'])
              .mark_line(strokeWidth=2)
