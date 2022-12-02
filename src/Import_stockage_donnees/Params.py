@@ -27,6 +27,8 @@ startDateMesure = '2022-03-21'
 endDateMesure = '2022-04-20'
 with ConnexionBdd(bdd) as c:
     enum_period_agreg = pd.read_sql("select code from agreg_bruit.enum_periode_agreg", c.sqlAlchemyConn).code.tolist()
+    enum_indicateur = pd.read_sql("select code from agreg_bruit.enum_indicateur", c.sqlAlchemyConn).code.tolist()
+    enum_instru_site = pd.read_sql("select id from mesures_physiques.instrumentation_site", c.sqlAlchemyConn).id.tolist()
 dicoInstruSite = {1: 'Ronsard', 3: 'Noyers', 4: 'Ladoumègue', 2: 'Villon'}
 
 ##############################################
