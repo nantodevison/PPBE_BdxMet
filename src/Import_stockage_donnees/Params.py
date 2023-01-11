@@ -9,6 +9,7 @@ Module de parametres d'import_export des donnees
 import os
 import pandas as pd
 from Connexions.Connexion_Transfert import ConnexionBdd
+from Outils.Outils import checkListValues
 
 
 def conversionNumerique(numTexte):
@@ -29,6 +30,8 @@ with ConnexionBdd(bdd) as c:
     enum_period_agreg = pd.read_sql("select code from agreg_bruit.enum_periode_agreg", c.sqlAlchemyConn).code.tolist()
     enum_indicateur = pd.read_sql("select code from agreg_bruit.enum_indicateur", c.sqlAlchemyConn).code.tolist()
     enum_instru_site = pd.read_sql("select id from mesures_physiques.instrumentation_site", c.sqlAlchemyConn).id.tolist()
+    enum_trafic_sens = pd.read_sql("select code from mesures_physiques.enum_trafic_sens", c.sqlAlchemyConn).code.tolist()
+    enum_trafic_voie = pd.read_sql("select code from mesures_physiques.enum_trafic_voie", c.sqlAlchemyConn).code.tolist()
 dicoInstruSite = {1: 'Ronsard', 3: 'Noyers', 4: 'Ladoumègue', 2: 'Villon'}
 
 ##############################################
@@ -97,4 +100,8 @@ dicoSiteLibCanal = {8: ['5243.00 1', '5143.00 2'],
                     7: ['5742.00 1', '5742.00 2', '5742.91 1', '5742.93 1', '5742.95 1', '5742.90 2', '5742.92 2', '5742.94 2'], 
                     9: ['5042.11 1', '5042.13 1', '5043.15 1', '5043.20 2', '5043.21 2', '5042.14 2']}
 listNatureMesure = ['Débit', 'Vitesse']
-
+dicoJourSensVoieKO = {7: {'sens exter': {'voie lente': ['2022-03-28', '2022-04-14', '2022-04-15', '2022-03-29']},
+                          'sens inter': {'voie médiane': ['2022-04-16', '2022-04-17', '2022-04-18']}}}
+checkListValues([c for c in dicoJourSensVoieKO.keys()], enum_instru_site)
+checkListValues([e for d in [c.keys() for c in dicoJourSensVoieKO.values()] for e in d], enum_trafic_sens)
+checkListValues([b for k in [e.keys() for d in [c.values() for c in dicoJourSensVoieKO.values()] for e in d] for b in k], enum_trafic_voie)

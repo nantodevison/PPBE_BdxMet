@@ -12,6 +12,7 @@ from datetime import datetime
 import pandas as pd
 from Expoitation_mesures.Meteo import creerGraphMeteo
 from Outils.Outils import checkAttributsinDf
+from Expoitation_mesures.Trafic import graphTraficVitesse2SensSepares
 
 
 def graphCroiseBruitMeteo1Jour(dfBruitMeteo, jour, domainBruit, rangeMin, rangeMax, domainMax,
@@ -105,3 +106,31 @@ def graphCroiseBruitMeteoPlusieursJour(dfBruitMeteo, listJours, domainBruit, ran
                 align='center', anchor='middle', fontSize=16).configure_legend(titleFontSize=13, labelFontSize=12).configure_axis(labelFontSize=13, titleFontSize=12)
 
 
+def graphCroiseBruitTrafic6min(df6MinParSens, df6MinBruit, largeur=1000, domaintraficMax=1200, domainVitesseMax=130, jour=None, domainBruit=(45, 68)):
+    """
+    concatener verticalement les graph de trafic avec les graphsde niveaux de bruit, par pas de 6 minutes
+    in : 
+        paramètres de Trafic.graphTraficVitesse2SensSepares()
+        df6MinBruit : issue de Acoustique.recupDonneesAgregees() avec ajout des colonnes heure_minute, jour, jou_rsort (dayofyear)
+        domainBruit : tuple d'integer représe tant les liimites lmin et max en Y du graph bruit
+    """
+    chartBruit = (alt.Chart(df6MinBruit.loc[(df6MinBruit.jour_sort.notna())], title=['Niveaux de bruit 2 sens confondus', 'Rue Jules Ladoumègue'])
+                  .mark_line()
+                  .encode(
+                      x=alt.X('hoursminutes(date_heure):T', title='Heure'),
+                      y=alt.Y('valeur', title='Niveaux de bruit', scale=alt.Scale(domain=(45, 68))))).properties(width=largeur)
+    if jour : 
+        chartBruit = chartBruit.transform_filter(f"datum.jour_sort == {jour}")
+    else:
+        slider = alt.binding_range(min=80, max=109, step=1)
+        select_day = alt.selection_single(name="jour_sort", fields=['jour_sort'],
+                                   bind=slider, init={'jour_sort': 80})
+        chartBruit = chartBruit.add_selection(select_day).transform_filter(select_day)
+    return alt.vconcat(graphTraficVitesse2SensSepares(df6MinParSens, domaintraficMax=domaintraficMax, domainVitesseMax=domainVitesseMax, 
+                                                      largeur=largeur, jour=jour),
+                                                      chartBruit)
+    
+    
+    
+    
+    

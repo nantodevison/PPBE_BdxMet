@@ -11,7 +11,7 @@ import altair as alt
 from datetime import datetime
 from Import_stockage_donnees.Params import bdd  # , startDateMesure, endDateMesure
 from Connexions.Connexion_Transfert import ConnexionBdd
-from Outils.Outils import checkAttributsinDf
+from Outils.Outils import checkAttributsinDf, dateTexteDepuisDayOfYear
 from Bruit.Meteo import correctionVitesseVentMeteoFrance
 
 
@@ -178,7 +178,7 @@ def creerGraphCompVentSiteMeteoFrance(dfMeteoCompRiverain, jour=None, largeur=80
                      .configure_legend(titleFontSize=13, labelFontSize=12)
                      .configure_axis(labelFontSize=13, titleFontSize=12))
     else:
-        titre = [f"Conditions aérodynamiques le {datetime.strptime('2022' + '-' + str(jour).rjust(3 , '0'), '%Y-%j').strftime('%A %d %B %Y')}"]
+        titre = [f"Conditions aérodynamiques le {dateTexteDepuisDayOfYear(jour, 2022)}"]
         chart = ((base.transform_filter(f"(datum.source == 'Mesures sur site') & (datum.jour == {jour})")
                      .properties(title='force et vitesse du vent sur site') & 
                  base.transform_filter(f"(datum.source == 'MétéoFrance Mérignac') & (datum.jour == {jour})")
