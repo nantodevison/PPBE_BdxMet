@@ -12,7 +12,7 @@ from datetime import datetime
 import pandas as pd
 from Expoitation_mesures.Meteo import creerGraphMeteo
 from Outils.Outils import checkAttributsinDf
-from Expoitation_mesures.Trafic import graphTraficVitesse2SensSepares
+from Expoitation_mesures.Trafic import graphTraficVitesseEmission2SensSepares
 
 
 def graphCroiseBruitMeteo1Jour(dfBruitMeteo, jour, domainBruit, rangeMin, rangeMax, domainMax,
@@ -126,7 +126,7 @@ def graphCroiseBruitTrafic6min(df6MinParSens, df6MinBruit, largeur=1000, domaint
         select_day = alt.selection_single(name="jour_sort", fields=['jour_sort'],
                                    bind=slider, init={'jour_sort': 80})
         chartBruit = chartBruit.add_selection(select_day).transform_filter(select_day)
-    return alt.vconcat(graphTraficVitesse2SensSepares(df6MinParSens, domaintraficMax=domaintraficMax, domainVitesseMax=domainVitesseMax, 
+    return alt.vconcat(graphTraficVitesseEmission2SensSepares(df6MinParSens, domaintraficMax=domaintraficMax, domainVitesseMax=domainVitesseMax, 
                                                       largeur=largeur, jour=jour),
                                                       chartBruit)
     
