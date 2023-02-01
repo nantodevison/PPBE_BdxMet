@@ -101,7 +101,19 @@ dicoSiteLibCanal = {8: ['5243.00 1', '5143.00 2'],
                     9: ['5042.11 1', '5042.13 1', '5043.15 1', '5043.20 2', '5043.21 2', '5042.14 2']}
 listNatureMesure = ['Débit', 'Vitesse']
 dicoJourSensVoieKO = {7: {'sens exter': {'voie lente': ['2022-03-28', '2022-04-14', '2022-04-15', '2022-03-29']},
-                          'sens inter': {'voie médiane': ['2022-04-16', '2022-04-17', '2022-04-18']}}}
+                          'sens inter': {'voie médiane': ['2022-04-16', '2022-04-17', '2022-04-18']}},
+                      8: {}}
 checkListValues([c for c in dicoJourSensVoieKO.keys()], enum_instru_site)
 checkListValues([e for d in [c.keys() for c in dicoJourSensVoieKO.values()] for e in d], enum_trafic_sens)
 checkListValues([b for k in [e.keys() for d in [c.values() for c in dicoJourSensVoieKO.values()] for e in d] for b in k], enum_trafic_voie)
+
+##############################################
+# Comparaison des ousrces de données
+##############################################
+
+idInstruSite7_joursBruitHeteroGene = ([84, 96, 101], "Comparaison de jours avec niveaux de bruit mesurés fort, moyen et faible")
+idInstruSite7_joursBruitFaible = ([89, 95, 96], "Comparaison de jours avec niveaux de bruit mesurés faible")
+idInstruSite7_joursBruitFort = ([80, 101, 102])
+jidInstruSite7_oursBruitMoyen = ([82, 84, 92], )
+idInstruSite7_jourMeteoFavRiverain = ([90, 99, 88, 89], "Comparaison de jours avec météo favorable au riverain")
+idInstruSite7_jourMeteoDefavRiverain = ([81, 101, 102], "Comparaison de jours avec météo défavorable au riverain")

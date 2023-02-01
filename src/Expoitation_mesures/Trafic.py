@@ -21,6 +21,7 @@ from Import_stockage_donnees.Params import (
 )  # , startDateMesure, endDateMesure
 from Outils.Outils import checkParamValues, checkAttributsinDf, dateTexteDepuisDayOfYear, checkValuesInAttribut
 from Bruit.Niveaux import sommeEnergetique
+from Bruit.Emission import Route
 
 
 def recupDonneesTraficBase(
@@ -292,78 +293,93 @@ def affecterVitesseInDico(
         dfVts6min : la df sur laquelle on applique la fonction
     """
     date = date_heure.strftime("%Y-%m-%d")
-    vitesseVoieMediane = dfVts6min.loc[
-        (dfVts6min.id_instru_site == id_instru_site)
-        & (dfVts6min.sens == sens)
-        & (dfVts6min.voie == "voie médiane")
-        & (dfVts6min.date_heure == date_heure),
-        "valeur",
-    ].values[0]
-    vitesseVoieLente = dfVts6min.loc[
-        (dfVts6min.id_instru_site == id_instru_site)
-        & (dfVts6min.sens == sens)
-        & (dfVts6min.voie == "voie lente")
-        & (dfVts6min.date_heure == date_heure),
-        "valeur",
-    ].values[0]
-    vitesseVoieRapide = dfVts6min.loc[
-        (dfVts6min.id_instru_site == id_instru_site)
-        & (dfVts6min.sens == sens)
-        & (dfVts6min.voie == "voie rapide")
-        & (dfVts6min.date_heure == date_heure),
-        "valeur",
-    ].values[0]
-    # vitesse PL
-    voie = "voie lente"
-    if (
-        testTraficInDicoJourKO(id_instru_site, sens, voie, date, dicoJourSensVoieKO)
-        or vitesseVoieLente == 0
-    ):
+    if id_instru_site == 7:  # dans ce cas là on dispose de données par voie et le dico est rempli avec des jours bizarres
+        vitesseVoieMediane = dfVts6min.loc[
+            (dfVts6min.id_instru_site == id_instru_site)
+            & (dfVts6min.sens == sens)
+            & (dfVts6min.voie == "voie médiane")
+            & (dfVts6min.date_heure == date_heure),
+            "valeur",
+        ].values[0]
+        vitesseVoieLente = dfVts6min.loc[
+            (dfVts6min.id_instru_site == id_instru_site)
+            & (dfVts6min.sens == sens)
+            & (dfVts6min.voie == "voie lente")
+            & (dfVts6min.date_heure == date_heure),
+            "valeur",
+        ].values[0]
+        vitesseVoieRapide = dfVts6min.loc[
+            (dfVts6min.id_instru_site == id_instru_site)
+            & (dfVts6min.sens == sens)
+            & (dfVts6min.voie == "voie rapide")
+            & (dfVts6min.date_heure == date_heure),
+            "valeur",
+        ].values[0]
+        # vitesse PL
+        voie = "voie lente"
         if (
-            testTraficInDicoJourKO(
-                id_instru_site, sens, "voie médiane", date, dicoJourSensVoieKO
-            )
-            or vitesseVoieMediane == 0
-        ):
-            if (
-                testTraficInDicoJourKO(
-                    id_instru_site, sens, "voie rapide", date, dicoJourSensVoieKO
-                )
-                or vitesseVoieRapide == 0
-            ):
-                return None
-            else:
-                vitessePL = vitesseVoieRapide
-        else:
-            vitessePL = vitesseVoieMediane
-    else:
-        vitessePL = vitesseVoieLente
-    # vitesse VL
-    voie = "voie médiane"
-    if (
-        testTraficInDicoJourKO(id_instru_site, sens, voie, date, dicoJourSensVoieKO)
-        or vitesseVoieMediane == 0
-    ):
-        if (
-            testTraficInDicoJourKO(
-                id_instru_site, sens, "voie lente", date, dicoJourSensVoieKO
-            )
+            testTraficInDicoJourKO(id_instru_site, sens, voie, date, dicoJourSensVoieKO)
             or vitesseVoieLente == 0
         ):
             if (
                 testTraficInDicoJourKO(
-                    id_instru_site, sens, "voie rapide", date, dicoJourSensVoieKO
+                    id_instru_site, sens, "voie médiane", date, dicoJourSensVoieKO
                 )
-                or vitesseVoieRapide == 0
+                or vitesseVoieMediane == 0
             ):
-                return None
+                if (
+                    testTraficInDicoJourKO(
+                        id_instru_site, sens, "voie rapide", date, dicoJourSensVoieKO
+                    )
+                    or vitesseVoieRapide == 0
+                ):
+                    return None
+                else:
+                    vitessePL = vitesseVoieRapide
             else:
-                vitesseVL = vitesseVoieRapide
+                vitessePL = vitesseVoieMediane
         else:
-            vitesseVL = vitesseVoieLente
-    else:
-        vitesseVL = vitesseVoieMediane
-
+            vitessePL = vitesseVoieLente
+        # vitesse VL
+        voie = "voie médiane"
+        if (
+            testTraficInDicoJourKO(id_instru_site, sens, voie, date, dicoJourSensVoieKO)
+            or vitesseVoieMediane == 0
+        ):
+            if (
+                testTraficInDicoJourKO(
+                    id_instru_site, sens, "voie lente", date, dicoJourSensVoieKO
+                )
+                or vitesseVoieLente == 0
+            ):
+                if (
+                    testTraficInDicoJourKO(
+                        id_instru_site, sens, "voie rapide", date, dicoJourSensVoieKO
+                    )
+                    or vitesseVoieRapide == 0
+                ):
+                    return None
+                else:
+                    vitesseVL = vitesseVoieRapide
+            else:
+                vitesseVL = vitesseVoieLente
+        else:
+            vitesseVL = vitesseVoieMediane
+    elif id_instru_site == 8:  # dans ce cas là on ne dispose que de données par section courante, et les données de vitesse sont cohérentes
+        vitesseVL = dfVts6min.loc[
+            (dfVts6min.id_instru_site == id_instru_site)
+            & (dfVts6min.sens == sens)
+            & (dfVts6min.voie == "section courante")
+            & (dfVts6min.date_heure == date_heure),
+            "valeur",
+        ].values[0]
+        vitessePL = dfVts6min.loc[
+            (dfVts6min.id_instru_site == id_instru_site)
+            & (dfVts6min.sens == sens)
+            & (dfVts6min.voie == "section courante")
+            & (dfVts6min.date_heure == date_heure),
+            "valeur",
+        ].values[0]*0.95 
     return vitessePL, vitesseVL
 
 
@@ -377,7 +393,7 @@ def recupVitesseVlPl6minParSens(dfVts6min):
     dfDateSimple = dfVts6min.drop_duplicates(
         ["date_heure", "id_instru_site", "sens"]
     ).drop(
-        ["indicateur", "valeur", "periode_agreg", "testVitesse", "voie"],
+        ["indicateur", "valeur", "periode_agreg", "testVitesse"],
         axis=1,
         errors="ignore",
     )
@@ -407,15 +423,16 @@ def recupTraficEtVitesse6MinParSens(id_instru_site, voie):
     """
     dfNbVLPL6min = recupVlPl6min(id_instru_site, voie=voie)
     dfVts6min = recupVitesseVlPl6minParSens(recupVitesseTV6min(id_instru_site))
+    dfVts6min = dfVts6min.loc[dfVts6min.voie.isin(voie)]
     df6MinParSens = pd.concat(
         [
             dfVts6min.melt(
-                id_vars=["date_heure", "id_instru_site", "sens"],
+                id_vars=["date_heure", "id_instru_site", "sens", "voie"],
                 value_vars=["vitessePL", "vitesseVL"],
                 value_name="valeur",
                 var_name="indicateur",
             ),
-            dfNbVLPL6min.groupby(["id_instru_site", "date_heure", "sens", "indicateur"])
+            dfNbVLPL6min.groupby(["id_instru_site", "date_heure", "sens", "indicateur", "voie"])
             .valeur.sum()
             .reset_index(),
         ]
@@ -466,9 +483,34 @@ def calculStatVitesseParSens(df):
     return dfStats6MinParSens
 
 
+def calculEmissionTheorique(df, sens1, decliviteVoieSens1, decliviteVoieSens2, ageRvtSens1, ageRvtSens2, revetement, allure):
+    """
+    calcul de l'émission d'une voie. la df doit etre classée par sens avec un attribut 'sens'
+    in : 
+        df : df avec des attribut 'sens, vitesseVL, vitessePL, VL, PL
+        sens1 : string : valeur d'attrinut sens pour un des deux sens
+        decliviteVoieSens1 : integer : declivité de la voie pour le sens 1 
+        decliviteVoieSens2 : integer : declivité de la voie pour le sens 2
+        ageRvtSens1 : integer : age du revt pour le sens 1
+        ageRvtSens2 : integer : age du revt pour le sens 2
+        revetement : string pari r1, r2, r3 concerne les deux sens
+        allure : string parmi 's', 'a', 'd', concerne les deux sens    
+    """
+    checkAttributsinDf(df, ['indicateur', 'sens'])
+    checkValuesInAttribut(df, 'indicateur', 'vitesseVL','vitessePL', 'VL', 'PL')
+    df6MinParSens = df.copy()
+    dfEmissionTheorique = df6MinParSens.pivot(index=['date_heure', 'sens', 'heure_minute', 'jour', 'jour_sort'], 
+                                              columns='indicateur', values='valeur').reset_index()
+    dfEmissionTheorique['declivite'] = dfEmissionTheorique.apply(lambda x: decliviteVoieSens1 if x.sens == sens1 else decliviteVoieSens2, axis=1)
+    dfEmissionTheorique['age_rvt'] = dfEmissionTheorique.apply(lambda x: ageRvtSens1 if x.sens == sens1 else ageRvtSens2, axis=1)
+    dfEmissionTheorique['emission_bruit'] = dfEmissionTheorique.apply(
+        lambda x : Route(x.VL, x.PL, x.vitesseVL, x.vitessePL, revetement, x.age_rvt, allure, x.declivite, ignoreErreurVts=True).lwm, axis=1)
+    return dfEmissionTheorique
+
+
 def graphTraficVitesseEmission2SensSepares(
-    dfChartEmission, largeur=1000, hauteur=300, domaintraficMax=600, domainVitesseMax=130, jour=None, domainBruit=(55,90),
-    listSens=('sens inter', 'sens exter')
+    dfChartEmission, titre, largeur=1000, hauteur=300, domaintraficMax=600, domainVitesseMax=130, jour=None, domainBruit=(55,90),
+    listSens=('sens inter', 'sens exter'), emission_bruit=True
 ):
     """
     Creer un graph des volume des vl et pl et vitesses vl et pl, à partir des donnée 6 minutes
@@ -479,16 +521,16 @@ def graphTraficVitesseEmission2SensSepares(
         domainVitesseMax : integer : valeur max de l'axe Y des vitesses
         domainBruit : tuple de 2 integer : valeur max et min du niveaudémission théorique
         jour : integer ou None : nombre décrivant le jour de l'année. Si None, alors le graph propose un slider
+        emission_bruit : boolean qui traduit si l'emission bruit doit etre ajoutee au graph ou non
     """
     checkAttributsinDf(dfChartEmission, ['sens', 'jour_sort', 'indicateur', 'date_heure', 'valeur' ])
-    checkValuesInAttribut(dfChartEmission, 'indicateur', 'emission_bruit')
     checkValuesInAttribut(dfChartEmission, 'sens', *listSens)
     baseInt = (
         alt.Chart(
             dfChartEmission.loc[(dfChartEmission.jour_sort.notna())],
             title=[
                 f"Volume, vitesse de trafics et émission sonore ; {listSens[0]}",
-                "Section courante rocade Sud",
+                titre,
             ],
         )
         .encode(
@@ -532,25 +574,13 @@ def graphTraficVitesseEmission2SensSepares(
                 field="indicateur", oneOf=["vitesseVL", "vitessePL"]
             )
         )
-    )
-    BruitInt = baseInt.mark_line(color='red', size=4).encode(
-        y=alt.Y(
-                "valeur",
-                title="Émission de bruit",
-                scale=alt.Scale(domain=domainBruit),
-                axis=alt.Axis(labelColor='red', tickColor='red', titleColor='Red', titleAlign='left', titleAnchor='end', labelOverlap=True, labelOffset=3)
-            )).transform_filter(f"datum.indicateur == 'emission_bruit'")
-    chartInt = (
-        (nbVeh2SensInt + vts2SensInt + BruitInt)
-        .resolve_scale(y="independent", color='independent')
-        .properties(width=largeur, height=hauteur)
-    )    
+    )   
     baseExt = (
         alt.Chart(
             dfChartEmission.loc[(dfChartEmission.jour_sort.notna())],
             title=[
                 f"Volume, vitesse de trafics et émission sonore ; {listSens[1]}",
-                "Section courante rocade Sud",
+                titre,
             ],
         )
         .encode(
@@ -595,18 +625,43 @@ def graphTraficVitesseEmission2SensSepares(
             )
         )
     )
-    BruitExt = baseExt.mark_line(color='red', size=4).encode(
+    if emission_bruit:
+        checkValuesInAttribut(dfChartEmission, 'indicateur', 'emission_bruit')
+        BruitExt = baseExt.mark_line(color='red', size=4).encode(
+            y=alt.Y(
+                    "valeur",
+                    title="Émission de bruit",
+                    scale=alt.Scale(domain=domainBruit),
+                    axis=alt.Axis(labelColor='red', tickColor='red', titleColor='Red', titleAlign='left', titleAnchor='end', labelOverlap=True, labelOffset=3)
+                )).transform_filter(f"datum.indicateur == 'emission_bruit'")
+        BruitInt = baseInt.mark_line(color='red', size=4).encode(
         y=alt.Y(
                 "valeur",
                 title="Émission de bruit",
                 scale=alt.Scale(domain=domainBruit),
                 axis=alt.Axis(labelColor='red', tickColor='red', titleColor='Red', titleAlign='left', titleAnchor='end', labelOverlap=True, labelOffset=3)
             )).transform_filter(f"datum.indicateur == 'emission_bruit'")
-    chartExt = (
-        (nbVeh2SensExt + vts2SensExt + BruitExt)
-        .resolve_scale(y="independent", color='independent')
-        .properties(width=largeur, height=hauteur)
-    )
+        chartExt = (
+            (nbVeh2SensExt + vts2SensExt + BruitExt)
+            .resolve_scale(y="independent", color='independent')
+            .properties(width=largeur, height=hauteur)
+        )
+        chartInt = (
+            (nbVeh2SensInt + vts2SensInt + BruitInt)
+            .resolve_scale(y="independent", color='independent')
+            .properties(width=largeur, height=hauteur)
+        ) 
+    else:
+        chartExt = (
+            (nbVeh2SensExt + vts2SensExt)
+            .resolve_scale(y="independent", color='independent')
+            .properties(width=largeur, height=hauteur)
+        )
+        chartInt = (
+            (nbVeh2SensInt + vts2SensInt)
+            .resolve_scale(y="independent", color='independent')
+            .properties(width=largeur, height=hauteur)
+        )
     if jour:
         titre = alt.TitleParams(f"Trafics et émission de bruit le {dateTexteDepuisDayOfYear(jour, 2022)}")
         return alt.vconcat(
