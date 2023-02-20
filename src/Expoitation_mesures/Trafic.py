@@ -160,35 +160,41 @@ def recupVlPl6min(id_instru_site, sens=None, voie=None):
         id_instru_site : integer
         periode_agreg : periodes autorisées
     """
-    # recup des donnees 6 minute et 1 h
-    dfTraficParSens6min = recupDonneesTraficBase(
-        id_instru_site, sens=sens, voie=voie, indicateur=["TV"], periodeAgreg=["6 min"]
-    )
-    dfPcPLParSens1h = recupPourcentagePL(id_instru_site, voie=voie)
-    # jointure et calcul des attributs
-    dfMerge6min1h = dfTraficParSens6min.assign(
-        jour=dfTraficParSens6min.date_heure.dt.dayofyear,
-        heure=dfTraficParSens6min.date_heure.dt.hour,
-    ).merge(
-        dfPcPLParSens1h.assign(
-            jour=dfPcPLParSens1h.date_heure.dt.dayofyear,
-            heure=dfPcPLParSens1h.date_heure.dt.hour,
-        ).drop(["id_instru_site", "date_heure"], axis=1, errors="ignore"),
-        on=["jour", "heure", "sens", "voie"],
-    )
-    dfNbVLPL6min = (
-        dfMerge6min1h.assign(
-            VL=dfMerge6min1h.valeur * (1 - (dfMerge6min1h.pc_pl / 100)),
-            PL=dfMerge6min1h.valeur * dfMerge6min1h.pc_pl / 100,
+    # pour la rocade
+    if id_instru_site in (7,8):
+        # recup des donnees 6 minute et 1 h
+        dfTraficParSens6min = recupDonneesTraficBase(
+            id_instru_site, sens=sens, voie=voie, indicateur=["TV"], periodeAgreg=["6 min"]
         )
-        .melt(
-            id_vars=["date_heure", "id_instru_site", "jour", "voie", "sens"],
-            value_vars=["VL", "PL"],
-            var_name="indicateur",
-            value_name="valeurs",
+        dfPcPLParSens1h = recupPourcentagePL(id_instru_site, voie=voie)
+        # jointure et calcul des attributs
+        dfMerge6min1h = dfTraficParSens6min.assign(
+            jour=dfTraficParSens6min.date_heure.dt.dayofyear,
+            heure=dfTraficParSens6min.date_heure.dt.hour,
+        ).merge(
+            dfPcPLParSens1h.assign(
+                jour=dfPcPLParSens1h.date_heure.dt.dayofyear,
+                heure=dfPcPLParSens1h.date_heure.dt.hour,
+            ).drop(["id_instru_site", "date_heure"], axis=1, errors="ignore"),
+            on=["jour", "heure", "sens", "voie"],
         )
-        .rename(columns={"valeurs": "valeur"})
-    )
+        dfNbVLPL6min = (
+            dfMerge6min1h.assign(
+                VL=dfMerge6min1h.valeur * (1 - (dfMerge6min1h.pc_pl / 100)),
+                PL=dfMerge6min1h.valeur * dfMerge6min1h.pc_pl / 100,
+            )
+            .melt(
+                id_vars=["date_heure", "id_instru_site", "jour", "voie", "sens"],
+                value_vars=["VL", "PL"],
+                var_name="indicateur",
+                value_name="valeurs",
+            )
+            .rename(columns={"valeurs": "valeur"})
+        )
+    # pour la D936
+    if id_instru_site == 6:
+        dfNbVLPL6min = recupDonneesTraficBase(id_instru_site, sens=sens, voie=voie, indicateur=['VL', 'PL'], periodeAgreg='6 min')
+        
     return dfNbVLPL6min
 
 
@@ -421,22 +427,27 @@ def recupTraficEtVitesse6MinParSens(id_instru_site, voie):
         df6MinParSens : dataframe avec pour attributs date_heure', 'id_instru_site', 'sens', 'indicateur', 'valeur',
                         'heure_minute', 'jour', 'jour_sort'
     """
-    dfNbVLPL6min = recupVlPl6min(id_instru_site, voie=voie)
-    dfVts6min = recupVitesseVlPl6minParSens(recupVitesseTV6min(id_instru_site))
-    dfVts6min = dfVts6min.loc[dfVts6min.voie.isin(voie)]
-    df6MinParSens = pd.concat(
-        [
-            dfVts6min.melt(
-                id_vars=["date_heure", "id_instru_site", "sens", "voie"],
-                value_vars=["vitessePL", "vitesseVL"],
-                value_name="valeur",
-                var_name="indicateur",
-            ),
-            dfNbVLPL6min.groupby(["id_instru_site", "date_heure", "sens", "indicateur", "voie"])
-            .valeur.sum()
-            .reset_index(),
-        ]
-    )
+    if id_instru_site in (7, 8):
+        dfNbVLPL6min = recupVlPl6min(id_instru_site, voie=voie)
+        dfVts6min = recupVitesseVlPl6minParSens(recupVitesseTV6min(id_instru_site))
+        dfVts6min = dfVts6min.loc[dfVts6min.voie.isin(voie)]
+        df6MinParSens = pd.concat(
+            [
+                dfVts6min.melt(
+                    id_vars=["date_heure", "id_instru_site", "sens", "voie"],
+                    value_vars=["vitessePL", "vitesseVL"],
+                    value_name="valeur",
+                    var_name="indicateur",
+                ),
+                dfNbVLPL6min.groupby(["id_instru_site", "date_heure", "sens", "indicateur", "voie"])
+                .valeur.sum()
+                .reset_index(),
+            ]
+        )
+    elif id_instru_site == 6:
+        df6MinParSens = recupDonneesTraficBase(id_instru_site, voie=['section courante',], 
+                                               indicateur=['Vmoy_VL', 'Vmoy_PL', 'VL', 'PL'], 
+                                               periodeAgreg=['6 min']).replace({'Vmoy_VL': "vitesseVL", 'Vmoy_PL': "vitessePL"})
     df6MinParSens = df6MinParSens.assign(
         heure_minute=df6MinParSens.date_heure.apply(lambda x: f"{x.strftime('%H:%M')}"),
         jour=df6MinParSens.date_heure.apply(lambda x: x.strftime("%A %d %B %Y")),
